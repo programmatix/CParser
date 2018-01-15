@@ -57,7 +57,7 @@ The most useful parsers are:
 * parser.blockItemList - understands a Seq of multiple blockItems
 
 ## Using The Results
-Each parser returns a result from the fastparse library, so take a look at the [fastparse docs](http://www.lihaoyi.com/fastparse/).
+Each parser returns a result from the fastparse library.  The Getting Started above gives a good idea how to use the result, but if you need more then take a look at the [fastparse docs](http://www.lihaoyi.com/fastparse/).
 
 Wrapped inside a successful fastparse result is an abstract syntax tree (AST) corresponding to the C specification.  
 
