@@ -10,11 +10,11 @@ case class Exponent(v: Int) {
   def calc(): Float = Math.pow(10, v).toFloat
 }
 sealed trait Token
-sealed trait Constant extends Token with Expression // with PreprocessingToken
+sealed trait Constant extends Token with Expression with PPToken
 case class IntConstant(v: Int) extends Constant
 case class FloatConstant(v: Float) extends Constant
 case class EnumerationConstant(v: String) extends Constant
-case class CharacterConstant(v: String) extends Constant // with PreprocessingToken
+case class CharacterConstant(v: String) extends Constant with PPToken
 case class OctalConstant(v: Int)
 case class HexConstant(v: Int)
 case class HexDigit(v: Char)
@@ -26,11 +26,11 @@ sealed trait IdentifierNondigit
 case class IdentifierNondigit1(v: Nondigit) extends IdentifierNondigit
 case class IdentifierNondigit2(v: UniversalCharacterName) extends IdentifierNondigit
 sealed trait Expression
-case class Identifier(v: String) extends Token with Expression // with PreprocessingToken
+case class Identifier(v: String) extends Token with Expression with PPToken
 case class Keyword(v: String) extends Token
-case class Punctuator(v: String) extends Token // with PreprocessingToken
-case class StringLiteral(v: String) extends Token with Expression // with PreprocessingToken
-case class HeaderName(v: String) extends Token // with PreprocessingToken
+case class Punctuator(v: String) extends Token with PPToken
+case class StringLiteral(v: String) extends Token with Expression with PPToken
+case class HeaderName(v: String) extends Token with PPToken
 case class GenericSelection() extends Expression
 case class PostfixExpressionIndex(v1: Expression, v2: Expression) extends Expression
 case class PostfixExpressionDot(v1: Expression, v2: Expression) extends Expression
@@ -162,8 +162,8 @@ case class Error(v: Option[Seq[PPToken]]) extends ControlLine
 case class Pragma(v: Option[Seq[PPToken]]) extends ControlLine
 case class ControlLineEmpty() extends ControlLine
 case class ReplacementList(v: Option[Seq[PPToken]])
-//sealed trait ?PreprocessingToken
-case class PPToken(v: String)
+sealed trait PPToken
+//case class PPToken(v: String)
 case class TextLine(pp: Option[Seq[PPToken]]) extends GroupPart
 case class NonDirective(pp: Seq[PPToken]) extends GroupPart
 

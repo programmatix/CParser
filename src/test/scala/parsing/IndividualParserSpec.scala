@@ -162,8 +162,8 @@ class IndividualParserSpec extends FunSuite {
     val p = createParser()
     good(p.headerName.parse(""""hello.h""""), HeaderName("hello.h"))
     good(p.headerName.parse("""<hello.h>"""), HeaderName("hello.h"))
-    good(p.preprocessingToken.parse("""<hello.h>"""), PPToken("hello.h"))
-    good(p.ppTokens.parse("""<hello.h>"""), Seq(PPToken("hello.h")))
+    good(p.preprocessingToken.parse("""<hello.h>"""), HeaderName("hello.h"))
+    good(p.ppTokens.parse("""<hello.h>"""), Seq(HeaderName("hello.h")))
   }
 
   test("jumpStatement") {
@@ -502,7 +502,8 @@ class IndividualParserSpec extends FunSuite {
 //    good(p.preprocessingFile.parse("#include <hello.h>\n"), PreprocessingFile(Some(Group(Seq(Include(Seq(HeaderName("hello.h"))))))))
 //    good(p.top.parse("#include <hello.h>\n"), PreprocessingFile(Some(Group(Seq(Include(Seq(HeaderName("hello.h"))))))))
 
-    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(PPToken("hello.h"))))
+    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h"))))
+//    good(p.controlLine.parse("#include<stdio.h>\n"), Include(Seq(HeaderName("stdio.h"))))
 //    good(p.preprocessingFile.parse("#include <hello.h>\n"), PreprocessingFile(Some(Group(Seq(Include(Seq(HeaderName("hello.h"))))))))
 //    good(p.top.parse("#include <hello.h>\n"), PreprocessingFile(Some(Group(Seq(Include(Seq(HeaderName("hello.h"))))))))
   }
@@ -510,7 +511,7 @@ class IndividualParserSpec extends FunSuite {
   test("define") {
     val p = createParser()
 //    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h"))))
-    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(PPToken("hello.h"))))
+    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h"))))
   }
 
   test("struct simple") {
@@ -524,13 +525,29 @@ class IndividualParserSpec extends FunSuite {
             Declarator(None,DirectDeclaratorOnly(Identifier("data")))))))))
   }
 
+  def check[T](parser: Parser[T], raw: String) = {
+    val parsed = parser.parse(raw)
+    val wrap = CParseResult.wrap(parsed)
+    wrap match {
+      case CParseSuccess(x) =>
+        assert (true)
+      //        assert (x.v.nonEmpty)
+      case CParseFail(x) =>
+        println(wrap)
+        assert (false)
+    }
+
+  }
+
   def check(raw: String) = {
     val p = createParser()
-    p.parse(raw) match {
+    val parsed = p.parse(raw)
+    parsed match {
       case CParseSuccess(x) =>
         assert (true)
 //        assert (x.v.nonEmpty)
       case CParseFail(x) =>
+        println(parsed)
         assert (false)
     }
   }
@@ -564,6 +581,23 @@ class IndividualParserSpec extends FunSuite {
     val raw = """struct node { int data; } *head;""".stripMargin
 
     good((pp.declaration ~ End).parse(raw), SimpleDeclaration(DeclarationSpecifiers(List(StructOrUnionSpecifier(true,Some(Identifier("node")),List(StructDeclaration(List(TypeSpecifierSimple("int")),Some(StructDeclaratorList(List(StructDeclaractor1(Declarator(None,DirectDeclaratorOnly(Identifier("data")))))))))))),Some(List(DeclaratorEmpty(Declarator(Some("*"),DirectDeclaratorOnly(Identifier("head"))))))))
+  }
+
+  test("while") {
+    val raw = """while(n!=NULL) { n=n->next; c++; }""".stripMargin
+    check(pp.statement ~ End, """{
+                                |    n=n->next;
+                                |    c++;
+                                |    }""".stripMargin)
+    check(pp.iterationStatement ~ End, raw)
+  }
+
+  test("just func stuff") {
+    check(pp.blockItemList, """struct node *n;int c=0;n=head;""")
+    val raw = """struct node *n;
+                |    int c=0;
+                |    n=head;""".stripMargin
+    check(pp.blockItemList, raw)
   }
 
 }

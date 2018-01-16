@@ -71,11 +71,13 @@ class BigParserSpec extends FunSuite {
 
   def check(raw: String) = {
     val p = createParser()
-    p.parse(raw) match {
+    val parsed = p.parse(raw)
+    parsed match {
       case CParseSuccess(x) =>
         assert (true)
 //        assert (x.v.nonEmpty)
       case CParseFail(x) =>
+        println(parsed)
         assert (false)
     }
   }
@@ -287,5 +289,29 @@ class BigParserSpec extends FunSuite {
                 |    }
                 |    return 0;
                 |}""".stripMargin)
+  }
+
+  test("count while") {
+    check("""int count()
+            |{
+            |    struct node *n;
+            |    int c=0;
+            |    n=head;
+            |    while(n!=NULL)
+            |    {
+            |    n=n->next;
+            |    c++;
+            |    }
+            |    return c;
+            |}""".stripMargin)
+  }
+
+  test("simple") {
+    check("int count() { return 0; }")
+    check(
+      """int count()
+        |{
+        |    return 0;
+        |}""".stripMargin)
   }
 }

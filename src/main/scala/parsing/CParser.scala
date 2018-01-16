@@ -1,7 +1,5 @@
 package parsing
 
-import scala.scalajs.js.|
-
 /** This parses the C language according to the grammar here
   * https://port70.net/~nsz/c/c11/n1570.html#A
   * Converting an input string into an abstract syntax tree.
@@ -38,25 +36,28 @@ class CParser {
   // Whitespace sensitive parsers go here
   val identifier: fastparse.all.Parser[Identifier] = {
     import fastparse.all._
+
+    // These are all currently just used to build identifier
     val digit = P(CharIn('0' to '9')).!.map(v => Digit(v.charAt(0)))
     val hexadecimalDigit = P(CharIn('0' to '9') | CharIn('a' to 'f') | CharIn('A' to 'F')).!.map(v => HexDigit(v.charAt(0)))
-    val hexQuad = P(hexadecimalDigit ~ hexadecimalDigit ~ hexadecimalDigit ~ hexadecimalDigit).map(v => HexQuad(v._1, v._2, v._3, v._4))
-    val universalCharacterName = P(P("\\u") ~ hexQuad).map(v => UniversalCharacterName1(v)) | P("\\U" ~ hexQuad ~ hexQuad).map(v => UniversalCharacterName2(v._1, v._2))
+    val hexQuad = P(hexadecimalDigit ~ hexadecimalDigit ~ hexadecimalDigit ~ hexadecimalDigit).log().map(v => HexQuad(v._1, v._2, v._3, v._4))
+    val universalCharacterName = P(P("\\u") ~ hexQuad).log().map(v => UniversalCharacterName1(v)) | P("\\U" ~ hexQuad ~ hexQuad).log().map(v => UniversalCharacterName2(v._1, v._2))
     val nondigit = P(CharIn('a' to 'z') | CharIn('A' to 'Z') | "_").!.map(v => Nondigit(v.charAt(0)))
     val identifierNondigit = nondigit.map(v => IdentifierNondigit1(v)) |
       universalCharacterName.map(v => IdentifierNondigit2(v))
-    P(Index ~ P(nondigit ~ !" " ~ (nondigit | universalCharacterName | digit).rep(0)).! ~ Index).opaque("identifier").map(v =>
+
+    P(Index ~ P(nondigit ~ !" " ~ (nondigit | universalCharacterName | digit).rep(0)).! ~ Index).opaque("identifier").log().map(v =>
       Identifier(v._2))
   }
 
   val decimalConstant = {
     import fastparse.all._
-    P(CharIn('1' to '9') ~ CharIn('0' to '9').rep(0)).!.opaque("decimalConstant").map(v =>
+    P(CharIn('1' to '9') ~ CharIn('0' to '9').rep(0)).!.opaque("decimalConstant").log().map(v =>
       IntConstant(Integer.parseInt(v, 10)))
   }
   val octalConstant = {
     import fastparse.all._
-    P("0" ~ CharIn('0' to '7').rep(0)).!.opaque("octalConstant").map(v =>
+    P("0" ~ CharIn('0' to '7').rep(0)).!.opaque("octalConstant").log().map(v =>
       IntConstant(Integer.parseInt(v, 8)))
   }
 
@@ -78,7 +79,7 @@ class CParser {
     P("enum") | P("extern") | P("float") | P("for") | P("goto") | P("if") | P("inline") | P("int") | P("long") | P("register") | P("restrict") |
     P("return") | P("short") | P("signed") | P("sizeof") | P("static") | P("struct") | P("switch") | P("typedef") | P("union") | P("unsigned") |
     P("void") | P("volatile") | P("while") | P("_Alignas") | P("_Alignof") | P("_Atomic") | P("_Bool") | P("_Complex") | P("_Generic") |
-    P("_Imaginary") | P("_Noreturn") | P("_Static_assert") | P("_Thread_local")).!.opaque("keyword").map(v => Keyword(v))
+    P("_Imaginary") | P("_Noreturn") | P("_Static_assert") | P("_Thread_local")).!.opaque("keyword").log().map(v => Keyword(v))
 
 
   lazy val constant: Parser[Constant] = P(integerConstant | floatingConstant).opaque("constant")
@@ -97,14 +98,14 @@ class CParser {
   //   lazy val longSuffix = P(CharIn("lL"))
   //   lazy val longLongSuffix = P("ll" | "LL")
   lazy val floatingConstant: Parser[FloatConstant] = P(decimalFloatingConstant | hexadecimalFloatingConstant)
-  lazy val decimalFloatingConstant: Parser[FloatConstant] = P(P(fractionalConstant ~ exponentPart.? ~ floatingSuffix.?).map(v => FloatConstant(v._1.v * v._2.map(_.calc()).getOrElse(1.0f))) |
+  lazy val decimalFloatingConstant: Parser[FloatConstant] = P(P(fractionalConstant ~ exponentPart.? ~ floatingSuffix.?).log().map(v => FloatConstant(v._1.v * v._2.map(_.calc()).getOrElse(1.0f))) |
     P(digitSequence.!.map(v => {
       v.toInt
-    }) ~ exponentPart ~ floatingSuffix.?).map(v => FloatConstant(v._1 * v._2.calc())))
+    }) ~ exponentPart ~ floatingSuffix.?).log().map(v => FloatConstant(v._1 * v._2.calc())))
   lazy val hexadecimalFloatingConstant: Parser[FloatConstant] =
-    P(hexadecimalPrefix ~ hexadecimalFractionalConstant ~ binaryExponentPart ~ floatingSuffix.?).map(v =>
+    P(hexadecimalPrefix ~ hexadecimalFractionalConstant ~ binaryExponentPart ~ floatingSuffix.?).log().map(v =>
       FloatConstant(v._1.v * v._2.calc())) |
-      P(hexadecimalPrefix ~ hexadecimalDigitSequence ~ binaryExponentPart ~ floatingSuffix.?).map(v =>
+      P(hexadecimalPrefix ~ hexadecimalDigitSequence ~ binaryExponentPart ~ floatingSuffix.?).log().map(v =>
         FloatConstant(v._1.v * v._2.calc()))
   lazy val fractionalConstant = P(digitSequence.? ~ P(".") ~ digitSequence).!.map(v => FloatConstant(v.toFloat))
   lazy val exponentPart: Parser[Exponent] =
@@ -113,7 +114,7 @@ class CParser {
     })
   lazy val digitSequence = P(CharIn("0123456789").rep(1))
   lazy val hexadecimalFractionalConstant: Parser[FloatConstant] =
-    P(hexadecimalDigitSequence.?.! ~ P(".").! ~ hexadecimalDigitSequence.!).map(v =>
+    P(hexadecimalDigitSequence.?.! ~ P(".").! ~ hexadecimalDigitSequence.!).log().map(v =>
       FloatConstant(v._1.toFloat + Math.pow(v._3.toFloat, v._3.size * 1).toFloat))
   lazy val binaryExponentPart: Parser[Exponent] =
     (P("p" | P("P")) ~ CharIn("+-").? ~ digitSequence).!.map(v =>
@@ -175,7 +176,7 @@ class CParser {
   //    P(P("default") ~ P(":") ~ assignmentExpression)
 
   lazy val postfixExpression: Parser[Expression] =
-    P(primaryExpression ~ postfixExpressionR).map(v =>
+    P(primaryExpression ~ postfixExpressionR).log().map(v =>
       postfixRecurse(v)).opaque("postfixExpression")
 
   private def postfixRecurse(v: (Expression, PostfixRight2)): Expression = {
@@ -205,43 +206,43 @@ class CParser {
   }
 
   lazy val postfixExpressionR: Parser[PostfixRight2] =
-    P(P("[") ~ expression ~ P("]") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightIndex(v._1), v._2)) |
-      //    P(P("[") ~ multiplicativeExpression ~ P("]") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightIndex(v._1), v._2)) |
-      P(P("(") ~ argumentExpressionList.? ~ P(")") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightArgs(v._1), v._2)) |
-      P(P(".") ~ identifier ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightDot(v._1), v._2)) |
-      P(P("->") ~ identifier ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightArrow(v._1), v._2)) |
-      P(P("++") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightPlusPlus(), v)) |
-      P(P("--") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightMinusMinus(), v)) |
-      P("").map(v => PostfixRight2(Empty(), null))
+    P(P("[") ~ expression ~ P("]") ~ postfixExpressionR).log().map(v => PostfixRight2(PostfixRightIndex(v._1), v._2)) |
+      //    P(P("[") ~ multiplicativeExpression ~ P("]") ~ postfixExpressionR).log().map(v => PostfixRight2(PostfixRightIndex(v._1), v._2)) |
+      P(P("(") ~ argumentExpressionList.? ~ P(")") ~ postfixExpressionR).log().map(v => PostfixRight2(PostfixRightArgs(v._1), v._2)) |
+      P(P(".") ~ identifier ~ postfixExpressionR).log().map(v => PostfixRight2(PostfixRightDot(v._1), v._2)) |
+      P(P("->") ~ identifier ~ postfixExpressionR).log().map(v => PostfixRight2(PostfixRightArrow(v._1), v._2)) |
+      P(P("++") ~ postfixExpressionR).log().map(v => PostfixRight2(PostfixRightPlusPlus(), v)) |
+      P(P("--") ~ postfixExpressionR).log().map(v => PostfixRight2(PostfixRightMinusMinus(), v)) |
+      P("").log().map(v => PostfixRight2(Empty(), null))
 
   // Can't figure this one out
   // P(P("(") ~ typeName ~ P(")") ~ P("{") ~ initializerList ~ P(",").? ~ P("}"))
   lazy val argumentExpressionList: Parser[ArgumentExpressionList] =
-  P(assignmentExpression ~ P(P(",") ~ assignmentExpression).rep(0)).map(v =>
+  P(assignmentExpression ~ P(P(",") ~ assignmentExpression).rep(0)).log().map(v =>
     ArgumentExpressionList((v._1 +: v._2).toList))
 
   lazy val unaryExpression: Parser[Expression] =
-    P(P(P("++") ~ unaryExpression).map(v => UnaryExpressionPlusPlus(v)) |
-      P(P("--") ~ unaryExpression).map(v => UnaryExpressionMinusMinus(v)) |
-      P(unaryOperator.! ~ castExpression).map(v => UnaryExpressionCast(v._1.charAt(0), v._2)) |
-      P(P("sizeof") ~ unaryExpression).map(v => UnaryExpressionSizeOf(v)) |
-      P(P("sizeof") ~ P("(") ~ typeName ~ P(")")).map(v => UnaryExpressionSizeOfType(v)) |
-      P(P("_Alignof") ~ P("(") ~ typeName ~ P(")")).map(v => UnaryExpressionAlignOf(v)) |
+    P(P(P("++") ~ unaryExpression).log().map(v => UnaryExpressionPlusPlus(v)) |
+      P(P("--") ~ unaryExpression).log().map(v => UnaryExpressionMinusMinus(v)) |
+      P(unaryOperator.! ~ castExpression).log().map(v => UnaryExpressionCast(v._1.charAt(0), v._2)) |
+      P(P("sizeof") ~ unaryExpression).log().map(v => UnaryExpressionSizeOf(v)) |
+      P(P("sizeof") ~ P("(") ~ typeName ~ P(")")).log().map(v => UnaryExpressionSizeOfType(v)) |
+      P(P("_Alignof") ~ P("(") ~ typeName ~ P(")")).log().map(v => UnaryExpressionAlignOf(v)) |
       postfixExpression).opaque("unaryExpression")
 
   lazy val unaryOperator = CharIn("&*+-~!")
 
   lazy val castExpression: Parser[Expression] =
-    P(P(P("(") ~ typeName ~ P(")") ~ castExpression).map(v => CastExpression(v._1, v._2)) |
+    P(P(P("(") ~ typeName ~ P(")") ~ castExpression).log().map(v => CastExpression(v._1, v._2)) |
       unaryExpression).opaque("castExpression")
 
   lazy val multiplicativeExpression: Parser[Expression] =
-    P(castExpression ~ multiplicativeExpressionHelper).map(v => binary(v._1, v._2)).opaque("multiplicativeExpression")
+    P(castExpression ~ multiplicativeExpressionHelper).log().map(v => binary(v._1, v._2)).opaque("multiplicativeExpression")
   lazy val multiplicativeExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("*").! ~ multiplicativeExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P(P("/").! ~ multiplicativeExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P(P("%").! ~ multiplicativeExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("*").! ~ multiplicativeExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P(P("/").! ~ multiplicativeExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P(P("%").! ~ multiplicativeExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   // These methods help us glue full expressions back together, after they had to be split apart during left recursion removal
   private def binary(left: Expression, right: BinaryOpBuildWrap): Expression = {
@@ -291,96 +292,96 @@ class CParser {
   }
 
   lazy val additiveExpression: Parser[Expression] =
-    (multiplicativeExpression ~ additiveExpressionHelper).map(v => binary(v._1, v._2)).opaque("additiveExpression")
+    (multiplicativeExpression ~ additiveExpressionHelper).log().map(v => binary(v._1, v._2)).opaque("additiveExpression")
   lazy val additiveExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("+").! ~ additiveExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P(P("-").! ~ additiveExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("+").! ~ additiveExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P(P("-").! ~ additiveExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val shiftExpression: Parser[Expression] =
-    (additiveExpression ~ shiftExpressionHelper).map(v => binary(v._1, v._2)).opaque("shiftExpression")
+    (additiveExpression ~ shiftExpressionHelper).log().map(v => binary(v._1, v._2)).opaque("shiftExpression")
   lazy val shiftExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("<<").! ~ shiftExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P(P(">>").! ~ shiftExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("<<").! ~ shiftExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P(P(">>").! ~ shiftExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val relationalExpression: Parser[Expression] =
-    (shiftExpression ~ relationalExpressionHelper).map(v => binary(v._1, v._2)).opaque("relationalExpression")
+    (shiftExpression ~ relationalExpressionHelper).log().map(v => binary(v._1, v._2)).opaque("relationalExpression")
   lazy val relationalExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("<").! ~ relationalExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P(P(">").! ~ relationalExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P(P("<=").! ~ relationalExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P(P(">=").! ~ relationalExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("<").! ~ relationalExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P(P(">").! ~ relationalExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P(P("<=").! ~ relationalExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P(P(">=").! ~ relationalExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val equalityExpression: Parser[Expression] =
-    (relationalExpression ~ equalityExpressionHelper).map(v => binary(v._1, v._2)).opaque("equalityExpression")
+    (relationalExpression ~ equalityExpressionHelper).log().map(v => binary(v._1, v._2)).opaque("equalityExpression")
   lazy val equalityExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("==").! ~ equalityExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P(P("!=").! ~ equalityExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("==").! ~ equalityExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P(P("!=").! ~ equalityExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val ANDExpression: Parser[Expression] =
-    (equalityExpression ~ ANDExpressionHelper).map(v => binary(v._1, v._2)).opaque("ANDExpression")
+    (equalityExpression ~ ANDExpressionHelper).log().map(v => binary(v._1, v._2)).opaque("ANDExpression")
   lazy val ANDExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("&").! ~ ANDExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("&").! ~ ANDExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val exclusiveORExpression: Parser[Expression] =
-    (ANDExpression ~ exclusiveORExpressionHelper).map(v => binary(v._1, v._2))
+    (ANDExpression ~ exclusiveORExpressionHelper).log().map(v => binary(v._1, v._2))
   lazy val exclusiveORExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("^").! ~ exclusiveORExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("^").! ~ exclusiveORExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val inclusiveORExpression: Parser[Expression] =
-    (exclusiveORExpression ~ inclusiveORExpressionHelper).map(v => binary(v._1, v._2))
+    (exclusiveORExpression ~ inclusiveORExpressionHelper).log().map(v => binary(v._1, v._2))
   lazy val inclusiveORExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("|").! ~ inclusiveORExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("|").! ~ inclusiveORExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val logicalANDExpression: Parser[Expression] =
-    (inclusiveORExpression ~ logicalANDExpressionHelper).map(v => binary(v._1, v._2))
+    (inclusiveORExpression ~ logicalANDExpressionHelper).log().map(v => binary(v._1, v._2))
   lazy val logicalANDExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("&&").! ~ logicalANDExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("&&").! ~ logicalANDExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val logicalORExpression: Parser[Expression] =
-    (logicalANDExpression ~ logicalORExpressionHelper).map(v => binary(v._1, v._2)).opaque("logicalORExpression")
+    (logicalANDExpression ~ logicalORExpressionHelper).log().map(v => binary(v._1, v._2)).opaque("logicalORExpression")
   lazy val logicalORExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P("||").! ~ logicalORExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(P("||").! ~ logicalORExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
 
   lazy val conditionalExpression: Parser[Expression] =
-    (logicalORExpression ~ conditionalExpressionHelper).map(v => ternary(v._1, v._2)).opaque("conditionalExpression")
+    (logicalORExpression ~ conditionalExpressionHelper).log().map(v => ternary(v._1, v._2)).opaque("conditionalExpression")
   lazy val conditionalExpressionHelper: Parser[TernaryOpBuildWrap] =
-    P(P("?") ~ expression ~ P(":") ~ conditionalExpression).map(v => TernaryOpBuildWrap("?", ":", v._1, v._2)) |
-      P("").map(v => TernaryOpBuildWrap(" ", " ", null, null))
+    P(P("?") ~ expression ~ P(":") ~ conditionalExpression).log().map(v => TernaryOpBuildWrap("?", ":", v._1, v._2)) |
+      P("").log().map(v => TernaryOpBuildWrap(" ", " ", null, null))
 
   lazy val assignmentExpression: Parser[Expression] =
-    (conditionalExpression ~ assignmentExpressionHelper).map(v => binary(v._1, v._2)).opaque("assignmentExpression")
+    (conditionalExpression ~ assignmentExpressionHelper).log().map(v => binary(v._1, v._2)).opaque("assignmentExpression")
   lazy val assignmentExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(assignmentOperator.! ~ assignmentExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))
+    P(assignmentOperator.! ~ assignmentExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))
   lazy val assignmentOperator = P("=") | P("*=") | P("/=") | P("%=") | P("+=") | P("-=") | P("<<=") | P(">>=") | P("&=") | P("^=") | P("|=")
 
   lazy val expression: Parser[Expression] =
-    (assignmentExpression ~ expressionHelper).map(v => binary(v._1, v._2)).opaque("expression")
+    (assignmentExpression ~ expressionHelper).log().map(v => binary(v._1, v._2)).opaque("expression")
   lazy val expressionHelper: Parser[BinaryOpBuildWrap] =
-    P(P(P(",").! ~ assignmentExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
-      P("").map(v => BinaryOpBuildWrap(" ", null))).opaque("expressionHelper")
+    P(P(P(",").! ~ assignmentExpression).log().map(v => BinaryOpBuildWrap(v._1, v._2)) |
+      P("").log().map(v => BinaryOpBuildWrap(" ", null))).opaque("expressionHelper")
 
   lazy val constantExpression: Parser[Expression] = conditionalExpression
 
   // int hello;
-  lazy val declaration: Parser[Declaration] = P(P(P(declarationSpecifiers ~ initDeclaratorList.? ~ P(";")).map(v => SimpleDeclaration(v._1, v._2)) |
+  lazy val declaration: Parser[Declaration] = P(P(P(declarationSpecifiers ~ initDeclaratorList.? ~ P(";")).log().map(v => SimpleDeclaration(v._1, v._2)) |
     static_assertDeclaration)).opaque("declaration")
   lazy val declarationSpecifier: Parser[DeclarationSpecifier] =
     P(storageClassSpecifier | typeSpecifier | typeQualifier | functionSpecifier | alignmentSpecifier).opaque("declarationSpecifier")
-  lazy val declarationSpecifiers: Parser[DeclarationSpecifiers] = declarationSpecifier.rep(1).map(v => DeclarationSpecifiers(v.toList)).opaque("declarationSpecifiers")
+  lazy val declarationSpecifiers: Parser[DeclarationSpecifiers] = declarationSpecifier.rep(1).log().map(v => DeclarationSpecifiers(v.toList)).opaque("declarationSpecifiers")
 
-  lazy val initDeclaratorList: Parser[Seq[InitDeclarator]] = P(initDeclarator ~ P(P(",") ~ initDeclarator).rep(0)).opaque("initDeclarationList").map(v => (v._1 +: v._2).toList)
+  lazy val initDeclaratorList: Parser[Seq[InitDeclarator]] = P(initDeclarator ~ P(P(",") ~ initDeclarator).rep(0)).opaque("initDeclarationList").log().map(v => (v._1 +: v._2).toList)
   lazy val initDeclarator: Parser[InitDeclarator] =
-    P(declarator ~ P("=") ~ initializer).map(v => DeclaratorWithInit(v._1, v._2)) |
+    P(declarator ~ P("=") ~ initializer).log().map(v => DeclaratorWithInit(v._1, v._2)) |
       declarator.map(DeclaratorEmpty)
 
   lazy val storageClassSpecifier: Parser[StorageClassSpecifier] =
@@ -390,22 +391,30 @@ class CParser {
   lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple) | structOrUnionSpecifier).opaque("typeSpecifier")
 
   lazy val structOrUnionSpecifier: Parser[StructOrUnionSpecifier] =
-    P(structOrUnion.! ~ identifier.? ~ P("{") ~ structDeclarationList ~ P("}")).map(v => StructOrUnionSpecifier(v._1 == "struct", v._2, v._3.toList)) |
-    P(structOrUnion.! ~ identifier).map(v => StructOrUnionSpecifier(v._1 == "struct", Some(v._2), Seq()))
+    P(structOrUnion.! ~ identifier.? ~ P("{") ~ structDeclarationList ~ P("}")).log().map(v => StructOrUnionSpecifier(v._1 == "struct", v._2, v._3.toList)) |
+      P(structOrUnion.! ~ identifier).log().map(v => StructOrUnionSpecifier(v._1 == "struct", Some(v._2), Seq()))
   lazy val structOrUnion = P("struct") | P("union")
-  lazy val structDeclarationList: Parser[Seq[StructDeclaration]] = structDeclaration.rep(1).map(_.toList)
+  lazy val structDeclarationList: Parser[Seq[StructDeclaration]] = structDeclaration.rep(1).log().map(_.toList)
   lazy val structDeclaration: Parser[StructDeclaration] = P(specifierQualifierList ~ structDeclaratorList.? ~ P(";"))
-    .opaque("structDeclaration").map(v => StructDeclaration(v._1.toList, v._2))
+    .opaque("structDeclaration").log().map(v => StructDeclaration(v._1.toList, v._2))
   // TODO removing as I've never seen the _Static_assert thing
   //    static_assertDeclaration
   // This is a slightly simplified version of the spec
-  lazy val specifierQualifierList: Parser[Seq[DeclarationSpecifier]] = P(P(typeSpecifier | typeQualifier).rep(1)).opaque("specifierQualifierList")
+
+  // To handle struct node { int data; struct node *next; }
+  // StructOrUnionSpecifier extends from TypeSpecifier but we want it to be a TypeSpecifierSimple in the "struct node *next" bit
+  lazy val convertStructTypeSpecifier: Parser[TypeSpecifier] = typeSpecifier.map(v => v match {
+      case x: StructOrUnionSpecifier => TypeSpecifierSimple(x.id.map("struct " + _.v).getOrElse(""))
+      case _ => v
+    })
+  lazy val specifierQualifierList: Parser[Seq[DeclarationSpecifier]] =
+    P(P(convertStructTypeSpecifier | typeQualifier).rep(1)).opaque("specifierQualifierList")
   lazy val structDeclaratorList: Parser[StructDeclaratorList] =
     P(structDeclarator ~ P(P(",") ~ structDeclarator).rep(0))
-      .opaque("structDeclaratorList").map(v => StructDeclaratorList((v._1 +: v._2).toList))
+      .opaque("structDeclaratorList").log().map(v => StructDeclaratorList((v._1 +: v._2).toList))
   lazy val structDeclarator: Parser[StructDeclaractor] =
     P(declarator.map(StructDeclaractor1) |
-      P(declarator.? ~ P(":") ~ constantExpression).map(v => StructDeclaractor2(v._1, v._2))).
+      P(declarator.? ~ P(":") ~ constantExpression).log().map(v => StructDeclaractor2(v._1, v._2))).
       opaque("structDeclarator")
 
   lazy val enumSpecifier = P(P("enum") ~ identifier.? ~ P("{") ~ enumeratorList ~ P("}") ~ P(",").?) |
@@ -424,20 +433,20 @@ class CParser {
 
   // "main(int argc)"
   // "someFunc(hello, world)"
-  lazy val declarator: Parser[Declarator] = (pointer.!.? ~ directDeclarator).opaque("declarator").map(v => Declarator(v._1, v._2))
-  lazy val directDeclarator: Parser[DirectDeclarator] = P(P(P("(") ~ declarator ~ P(")")).map(DDBracketed) |
-    (identifier ~ directDeclaratorHelper).map(v => {
+  lazy val declarator: Parser[Declarator] = (pointer.!.? ~ directDeclarator).opaque("declarator").log().map(v => Declarator(v._1, v._2))
+  lazy val directDeclarator: Parser[DirectDeclarator] = P(P(P("(") ~ declarator ~ P(")")).log().map(DDBracketed) |
+    (identifier ~ directDeclaratorHelper).log().map(v => {
       directDeclaratorRecurse(v._1, v._2)
     })).opaque("directDeclarator")
   lazy val directDeclaratorHelper: Parser[DDBuild2] =
     P(
-      P(P("[") ~ typeQualifierList.? ~ assignmentExpression.? ~ P("]") ~ directDeclaratorHelper).map(v => DDBuild2(DDBuildTypeQualifierListAssignment(v._1, v._2), v._3)) |
-        P(P("[") ~ P("static") ~ typeQualifierList.? ~ assignmentExpression ~ P("]") ~ directDeclaratorHelper).map(v => DDBuild2(DDBuildTypeQualifierListAssignment(v._1, Some(v._2)), v._3)) |
-        P(P("[") ~ typeQualifierList ~ P("static") ~ assignmentExpression ~ P("]") ~ directDeclaratorHelper).map(v => DDBuild2(DDBuildTypeQualifierListAssignment(Some(v._1), Some(v._2)), v._3)) |
-        P(P("[") ~ typeQualifierList.? ~ P("*") ~ P("]") ~ directDeclaratorHelper).map(v => DDBuild2(DDBuildTypeQualifierList(v._1), v._2)) |
-        P(P("(") ~ parameterTypeList ~ P(")") ~ directDeclaratorHelper).map(v => DDBuild2(DDBuildParameterTypeList(v._1), v._2)) |
-        P(P("(") ~ identifierList.? ~ P(")") ~ directDeclaratorHelper).map(v => DDBuild2(DDBuildIdentifierList(v._1), v._2)) |
-        P("").map(v => DDBuild2(Empty(), null))
+      P(P("[") ~ typeQualifierList.? ~ assignmentExpression.? ~ P("]") ~ directDeclaratorHelper).log().map(v => DDBuild2(DDBuildTypeQualifierListAssignment(v._1, v._2), v._3)) |
+        P(P("[") ~ P("static") ~ typeQualifierList.? ~ assignmentExpression ~ P("]") ~ directDeclaratorHelper).log().map(v => DDBuild2(DDBuildTypeQualifierListAssignment(v._1, Some(v._2)), v._3)) |
+        P(P("[") ~ typeQualifierList ~ P("static") ~ assignmentExpression ~ P("]") ~ directDeclaratorHelper).log().map(v => DDBuild2(DDBuildTypeQualifierListAssignment(Some(v._1), Some(v._2)), v._3)) |
+        P(P("[") ~ typeQualifierList.? ~ P("*") ~ P("]") ~ directDeclaratorHelper).log().map(v => DDBuild2(DDBuildTypeQualifierList(v._1), v._2)) |
+        P(P("(") ~ parameterTypeList ~ P(")") ~ directDeclaratorHelper).log().map(v => DDBuild2(DDBuildParameterTypeList(v._1), v._2)) |
+        P(P("(") ~ identifierList.? ~ P(")") ~ directDeclaratorHelper).log().map(v => DDBuild2(DDBuildIdentifierList(v._1), v._2)) |
+        P("").log().map(v => DDBuild2(Empty(), null))
     ).opaque("directDeclaratorHelper")
 
   private def directDeclaratorRecurse(identifier: Identifier, right: DDBuild2): DirectDeclarator = {
@@ -448,6 +457,9 @@ class CParser {
   def directDeclaratorMerge(left: Identifier, right: DDBuild): DirectDeclarator = {
     right match {
       case v: DDBuildParameterTypeList => FunctionDeclaration(left, v.v)
+      case v: DDBuildIdentifierList => FunctionDeclaration(left, ParameterTypeList(Seq(), false))
+//      case v: DDBuildTypeQualifierList => FunctionDeclaration(left, v.v)
+//      case v: DDBuildTypeQualifierListAssignment => FunctionDeclaration(left, v.v)
       case v: Empty                    => DirectDeclaratorOnly(left)
       case _                           =>
         assert(false, s"Cannot handle DDBuild $right yet")
@@ -461,16 +473,16 @@ class CParser {
   lazy val typeQualifierList = typeQualifier.rep(1)
 
   lazy val parameterTypeList: Parser[ParameterTypeList] =
-    (parameterList ~ P(P(",") ~ P("...")).!.?).opaque("parameterTypeList").map(v =>
+    (parameterList ~ P(P(",") ~ P("...")).!.?).opaque("parameterTypeList").log().map(v =>
       ParameterTypeList(v._1, v._2.isDefined))
   lazy val parameterList: Parser[Seq[ParameterDeclaration]] =
-    (parameterDeclaration ~ P(P(",") ~ parameterDeclaration).rep(0)).opaque("parameterList").map(v => (v._1 +: v._2).toList)
-  lazy val parameterDeclaration: Parser[ParameterDeclaration] = P(declarationSpecifiers ~ declarator).map(v => ParameterDeclarationDeclarator(v._1, v._2))
+    (parameterDeclaration ~ P(P(",") ~ parameterDeclaration).rep(0)).opaque("parameterList").log().map(v => (v._1 +: v._2).toList)
+  lazy val parameterDeclaration: Parser[ParameterDeclaration] = P(declarationSpecifiers ~ declarator).log().map(v => ParameterDeclarationDeclarator(v._1, v._2))
   // TODO need but directAbstractDeclarator will be a pain
-  //    P(declarationSpecifiers ~ abstractDeclarator.?).map(v => ParameterDeclarationAbstractDeclarator(v._1, v._2))
+  //    P(declarationSpecifiers ~ abstractDeclarator.?).log().map(v => ParameterDeclarationAbstractDeclarator(v._1, v._2))
 
   lazy val identifierList: Parser[Seq[Identifier]] =
-    (identifier ~ (P(",") ~ identifier).rep(0)).opaque("identifierList").map(v => (v._1 +: v._2).toList)
+    (identifier ~ (P(",") ~ identifier).rep(0)).opaque("identifierList").log().map(v => (v._1 +: v._2).toList)
 
   // TODO This needs to go back
   //  lazy val typeName: Parser[TypeName] = P(specifierQualifierList ~ abstractDeclarator.?).!.map(TypeName)
@@ -504,36 +516,36 @@ class CParser {
     P(selectionStatement) |
     P(iterationStatement) |
     P(jumpStatement)).opaque("statement")
-  val labeledStatement: Parser[LabelledStatement] = (identifier ~ P(":") ~ statement).map(v => LabelledLabel(v._1, v._2))
-  P(P("case") ~ constantExpression ~ P(":") ~ statement).map(v => LabelledCase(v._1, v._2)) |
-    P(P("default") ~ P(":") ~ statement).map(v => LabelledDefault(v))
-  val compoundStatement: Parser[CompoundStatement] = P("{") ~ blockItemList.?.opaque("compoundStatement").map(v => CompoundStatement(v.getOrElse(List()))) ~ P("}")
-  lazy val blockItemList: Parser[Seq[BlockItem]] = blockItem.rep(1).opaque("blockItemList").map(v => v.toList)
+  val labeledStatement: Parser[LabelledStatement] = (identifier ~ P(":") ~ statement).log().map(v => LabelledLabel(v._1, v._2))
+  P(P("case") ~ constantExpression ~ P(":") ~ statement).log().map(v => LabelledCase(v._1, v._2)) |
+    P(P("default") ~ P(":") ~ statement).log().map(v => LabelledDefault(v))
+  val compoundStatement: Parser[CompoundStatement] = P("{") ~ blockItemList.?.opaque("compoundStatement").log().map(v => CompoundStatement(v.getOrElse(List()))) ~ P("}")
+  lazy val blockItemList: Parser[Seq[BlockItem]] = blockItem.rep(1).opaque("blockItemList").log().map(v => v.toList)
   lazy val blockItem: Parser[BlockItem] = (declaration | statement).opaque("blockItem")
-  val expressionStatement: Parser[Statement] = (expression.? ~ P(";")).map(v => if (v.isDefined) ExpressionStatement(v.get) else ExpressionEmptyStatement())
-  val selectionStatement: Parser[SelectionStatement] = P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement).map(v => SelectionIf(v._1, v._2)) |
-    P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement ~ P("else") ~ statement).map(v => SelectionIfElse(v._1, v._2, v._3)) |
-    P(P("switch") ~ P("(") ~ expression ~ P(")") ~ statement).map(v => SelectionSwitch(v._1, v._2))
-  val iterationStatement: Parser[IterationStatement] = P(P(P("while") ~ P("(") ~ expression ~ P(")") ~ statement).map(v => IterationWhile(v._1, v._2)) |
-    P(P("do") ~ statement ~ P("while") ~ P("(") ~ expression ~ P(")") ~ P(";")).map(v => IterationDoWhile(v._2, v._1)) |
-    P(P("for") ~ P("(") ~ expression.? ~ P(";") ~ expression.? ~ P(";") ~ expression.? ~ P(")") ~ statement).map(v => IterationFor1(v._1, v._2, v._3, v._4)) |
-    P(P("for") ~ P("(") ~ declaration ~ expression.? ~ P(";") ~ expression.? ~ P(")") ~ statement).map(v => IterationFor2(v._1, v._2, v._3, v._4)))
+  val expressionStatement: Parser[Statement] = (expression.? ~ P(";")).log().map(v => if (v.isDefined) ExpressionStatement(v.get) else ExpressionEmptyStatement())
+  val selectionStatement: Parser[SelectionStatement] = P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement).log().map(v => SelectionIf(v._1, v._2)) |
+    P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement ~ P("else") ~ statement).log().map(v => SelectionIfElse(v._1, v._2, v._3)) |
+    P(P("switch") ~ P("(") ~ expression ~ P(")") ~ statement).log().map(v => SelectionSwitch(v._1, v._2))
+  val iterationStatement: Parser[IterationStatement] = P(P(P("while") ~ P("(") ~ expression ~ P(")") ~ statement).log().map(v => IterationWhile(v._1, v._2)) |
+    P(P("do") ~ statement ~ P("while") ~ P("(") ~ expression ~ P(")") ~ P(";")).log().map(v => IterationDoWhile(v._2, v._1)) |
+    P(P("for") ~ P("(") ~ expression.? ~ P(";") ~ expression.? ~ P(";") ~ expression.? ~ P(")") ~ statement).log().map(v => IterationFor1(v._1, v._2, v._3, v._4)) |
+    P(P("for") ~ P("(") ~ declaration ~ expression.? ~ P(";") ~ expression.? ~ P(")") ~ statement).log().map(v => IterationFor2(v._1, v._2, v._3, v._4)))
     .opaque("iterationStatement")
-  val jumpStatement: Parser[JumpStatement] = P(P("goto") ~ identifier ~ P(";")).map(v => Goto(v)) |
-    P(P("continue") ~ P(";")).map(v => Continue()) |
-    P(P("break") ~ P(";")).map(v => Break()) |
-    P(P("return") ~ expression.? ~ P(";")).map(v => Return(v))
+  val jumpStatement: Parser[JumpStatement] = P(P("goto") ~ identifier ~ P(";")).log().map(v => Goto(v)) |
+    P(P("continue") ~ P(";")).log().map(v => Continue()) |
+    P(P("break") ~ P(";")).log().map(v => Break()) |
+    P(P("return") ~ expression.? ~ P(";")).log().map(v => Return(v))
 
   //  A.2.4 External definitions
-  val declarationList: Parser[DeclarationList] = declaration.rep(1).map(v => DeclarationList(v)).opaque("declarationList")
+  val declarationList: Parser[DeclarationList] = declaration.rep(1).log().map(v => DeclarationList(v)).opaque("declarationList")
   val functionDefinition: Parser[FunctionDefinition] =
-    (declarationSpecifiers ~ declarator ~ declarationList.? ~ compoundStatement).opaque("functionDefinition").map(v =>
+    (declarationSpecifiers ~ declarator ~ declarationList.? ~ compoundStatement).opaque("functionDefinition").log().map(v =>
       FunctionDefinition(v._1, v._2, v._3, v._4))
   val externalDeclaration: Parser[ExternalDeclaration] = functionDefinition | declaration
-  val translationUnit: Parser[TranslationUnit] = (externalDeclaration | preprocessingFile).rep(1).map(v => TranslationUnit(v.toList))
-//  lazy val top: Parser[Top] = P(translationUnit | preprocessingFile)
-//  lazy val cfile: Parser[CFile] = (top ~ End).rep(1).map(CFile)
-//  lazy val cfile: Parser[CFile] = (translationUnit ~ End).map(v => CFile(v))
+  val translationUnit: Parser[TranslationUnit] = (externalDeclaration | preprocessingFile).rep(1).log().map(v => TranslationUnit(v.toList))
+  //  lazy val top: Parser[Top] = P(translationUnit | preprocessingFile)
+  //  lazy val cfile: Parser[CFile] = (top ~ End).rep(1).log().map(CFile)
+  //  lazy val cfile: Parser[CFile] = (translationUnit ~ End).log().map(v => CFile(v))
 
 
   // Tweaking the preprocessor definitions as currently they assume a separate tool, which is causing infinite loop issues:
@@ -550,49 +562,48 @@ class CParser {
       punctuator
       // TODO
       //each non-white-space character that cannot be one of the above
-    ).opaque("preprocessingToken").!.map(PPToken)
+    ).opaque("preprocessingToken")
 
-    lazy val preprocessingFile: Parser[PreprocessingFile] = group.map(v => PreprocessingFile(v)).opaque("preprocessingFile")
-    lazy val group: Parser[Group] = groupPart.rep(1).opaque("group").map(Group)
-    //  lazy val groupPart: Parser[GroupPart] = P(ifSection  | controlLine  | textLine | P("#") ~ nonDirective).opaque("groupPart")
-    lazy val groupPart: Parser[GroupPart] = P(ifSection | controlLine | P(P("#") ~ nonDirective)).opaque("groupPart")
-    //  lazy val groupPart: Parser[GroupPart] = P(ifSection).opaque("groupPart")
+  lazy val preprocessingFile: Parser[PreprocessingFile] = group.map(v => PreprocessingFile(v)).opaque("preprocessingFile")
+  lazy val group: Parser[Group] = groupPart.rep(1).opaque("group").log().map(Group)
+  //  lazy val groupPart: Parser[GroupPart] = P(ifSection  | controlLine  | textLine | P("#") ~ nonDirective).opaque("groupPart")
+  lazy val groupPart: Parser[GroupPart] = P(ifSection | controlLine | P(P("#") ~ nonDirective)).opaque("groupPart")
+  //  lazy val groupPart: Parser[GroupPart] = P(ifSection).opaque("groupPart")
 
-    lazy val ifSection: Parser[IfSection] = P(ifGroup ~ elifGroups.? ~ elseGroup.? ~ endifLine).map(v => IfSection(v._1, v._2, v._3, v._4)).opaque("ifSection")
-    lazy val ifGroup: Parser[IfGroup] =
-      P(P(P("#") ~ P("if") ~ constantExpression ~ newLine ~ group.?).map(v => If(v._1, v._2)) |
-        P(P("#") ~ P("ifdef") ~ identifier ~ newLine ~ group.?).map(v => IfDef(v._1, v._2)) |
-        P(P("#") ~ P("ifndef") ~ identifier ~ newLine ~ group.?).map(v => IfNDef(v._1, v._2)))
-        .opaque("ifGroup")
-    lazy val elifGroups = elifGroup.rep(1).opaque("elifGroups")
-    lazy val elifGroup: Parser[ElifGroup] =
-      P(P("#") ~ P("elif") ~ constantExpression ~ newLine ~ group.?).map(v => ElifGroup(v._1, v._2)).opaque("elifGroup")
-    lazy val elseGroup: Parser[ElseGroup] =
-      P(P("#") ~ P("else") ~ newLine ~ group.?).opaque("elseGroup").map(ElseGroup)
-    lazy val endifLine: Parser[EndifLine] =
-      P(P("#") ~ P("endif") ~ newLine).map(v => EndifLine()).opaque("endifLine")
+  lazy val ifSection: Parser[IfSection] = P(ifGroup ~ elifGroups.? ~ elseGroup.? ~ endifLine).log().map(v => IfSection(v._1, v._2, v._3, v._4)).opaque("ifSection")
+  lazy val ifGroup: Parser[IfGroup] =
+    P(P(P("#") ~ P("if") ~ constantExpression ~ group.?).log().map(v => If(v._1, v._2)) |
+      P(P("#") ~ P("ifdef") ~ identifier ~ group.?).log().map(v => IfDef(v._1, v._2)) |
+      P(P("#") ~ P("ifndef") ~ identifier ~ group.?).log().map(v => IfNDef(v._1, v._2)))
+      .opaque("ifGroup")
+  lazy val elifGroups = elifGroup.rep(1).opaque("elifGroups")
+  lazy val elifGroup: Parser[ElifGroup] =
+    P(P("#") ~ P("elif") ~ constantExpression ~ group.?).log().map(v => ElifGroup(v._1, v._2)).opaque("elifGroup")
+  lazy val elseGroup: Parser[ElseGroup] =
+    P(P("#") ~ P("else") ~ group.?).opaque("elseGroup").log().map(ElseGroup)
+  lazy val endifLine: Parser[EndifLine] =
+    P(P("#") ~ P("endif")).log().map(v => EndifLine()).opaque("endifLine")
 
-    lazy val controlLine: Parser[ControlLine] = P(
-      P(P("#") ~ P("include") ~ ppTokens ~ newLine).map(Include) |
-        P(P("#") ~ P("define") ~ identifier ~ replacementList ~ newLine).map(v => Define(v._1, v._2)) |
-        P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList.? ~ P(")") ~ replacementList ~ newLine).map(v => Define2(v._1, v._2, v._3)) |
-        P(P("#") ~ P("define") ~ identifier ~ lparen ~ P("...") ~ P(")") ~ replacementList ~ newLine).map(v => Define3(v._1, v._2)) |
-        P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList ~ P(",") ~ P("...") ~ P(")") ~ replacementList ~ newLine).map(v => Define4(v._1, v._2)) |
-        P(P("#") ~ P("undef") ~ identifier ~ newLine).map(Undef) |
-        P(P("#") ~ P("line") ~ ppTokens ~ newLine).map(Line) |
-        P(P("#") ~ P("error") ~ ppTokens.? ~ newLine).map(v => Error(v)) |
-        P(P("#") ~ P("pragma") ~ ppTokens.? ~ newLine).map(v => Pragma(v)) |
-        P(P("#") ~ newLine).map(v => ControlLineEmpty()))
-      .opaque("controlLine")
+  lazy val controlLine: Parser[ControlLine] = P(
+    P(P("#").log() ~ P("include").log() ~ ppTokens.log().log()).log().map(Include) |
+      P(P("#") ~ P("define") ~ identifier ~ replacementList).log().map(v => Define(v._1, v._2)) |
+      P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList.? ~ P(")") ~ replacementList).log().map(v => Define2(v._1, v._2, v._3)) |
+      P(P("#") ~ P("define") ~ identifier ~ lparen ~ P("...") ~ P(")") ~ replacementList).log().map(v => Define3(v._1, v._2)) |
+      P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList ~ P(",") ~ P("...") ~ P(")") ~ replacementList).log().map(v => Define4(v._1, v._2)) |
+      P(P("#") ~ P("undef") ~ identifier).log().map(Undef) |
+      P(P("#") ~ P("line") ~ ppTokens).log().map(Line) |
+      P(P("#") ~ P("error") ~ ppTokens.?).log().map(v => Error(v)) |
+      P(P("#") ~ P("pragma") ~ ppTokens.?).log().map(v => Pragma(v)) |
+      P(P("#")).log().map(v => ControlLineEmpty()))
+    .opaque("controlLine")
 
-    //  lazy val textLine: Parser[TextLine] = P(ppTokens.? ~ newLine).opaque("textLine").map(TextLine)
-    lazy val nonDirective: Parser[NonDirective] = P(ppTokens ~ newLine).opaque("nonDirective").map(NonDirective)
+  //  lazy val textLine: Parser[TextLine] = P(ppTokens.? ~ newLine).opaque("textLine").log().map(TextLine)
+  lazy val nonDirective: Parser[NonDirective] = P(ppTokens).opaque("nonDirective").log().map(NonDirective)
 
-    //  lazy val lparen = a ( character not immediately preceded by whiteSpace
-    lazy val lparen = P("(")
-    lazy val replacementList: Parser[ReplacementList] = (ppTokens.?).map(ReplacementList).opaque("replacementList")
-    lazy val ppTokens: Parser[Seq[PPToken]] = preprocessingToken.rep(1).opaque("ppTokens")
-    lazy val newLine = P("\r\n") | P("\n")
+  //  lazy val lparen = a ( character not immediately preceded by whiteSpace
+  lazy val lparen = P("(")
+  lazy val replacementList: Parser[ReplacementList] = (ppTokens.?).log().map(ReplacementList).opaque("replacementList")
+  lazy val ppTokens: Parser[Seq[PPToken]] = preprocessingToken.rep(1).opaque("ppTokens")
 
   def parse(in: String): CParseResult[TranslationUnit] = {
     val raw = translationUnit.parse(in.trim)
