@@ -4,8 +4,11 @@ import fastparse.all._
 import fastparse.core.Parsed
 import org.scalatest.FunSuite
 
+import scala.collection.mutable.ArrayBuffer
+
 // For testing small parts of the CParser
 class IndividualParserSpec extends FunSuite {
+  val pp = createParser()
 
   /*
 
@@ -159,6 +162,8 @@ class IndividualParserSpec extends FunSuite {
     val p = createParser()
     good(p.headerName.parse(""""hello.h""""), HeaderName("hello.h"))
     good(p.headerName.parse("""<hello.h>"""), HeaderName("hello.h"))
+    good(p.preprocessingToken.parse("""<hello.h>"""), HeaderName("hello.h"))
+    good(p.ppTokens.parse("""<hello.h>"""), Seq(HeaderName("hello.h")))
   }
 
   test("jumpStatement") {
@@ -491,5 +496,74 @@ class IndividualParserSpec extends FunSuite {
     P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* hello world */").get
   }
 
+  test("include") {
+    val p = createParser()
+//    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h"))))
+//    good(p.preprocessingFile.parse("#include <hello.h>\n"), PreprocessingFile(Some(Group(Seq(Include(Seq(HeaderName("hello.h"))))))))
+//    good(p.top.parse("#include <hello.h>\n"), PreprocessingFile(Some(Group(Seq(Include(Seq(HeaderName("hello.h"))))))))
+
+    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(PPToken("hello.h"))))
+//    good(p.preprocessingFile.parse("#include <hello.h>\n"), PreprocessingFile(Some(Group(Seq(Include(Seq(HeaderName("hello.h"))))))))
+//    good(p.top.parse("#include <hello.h>\n"), PreprocessingFile(Some(Group(Seq(Include(Seq(HeaderName("hello.h"))))))))
+  }
+
+  test("define") {
+    val p = createParser()
+//    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h"))))
+    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(PPToken("hello.h"))))
+  }
+
+  test("struct simple") {
+    good(pp.typeSpecifier.parse("struct myStruct"), TypeSpecifier("struct myStruct"))
+    good(pp.structDeclaration.parse("int data;"), StructDeclaration(
+      ArrayBuffer(
+        TypeSpecifier("int")),
+      Some(StructDeclaratorList(
+        List(
+          StructDeclaractor1(
+            Declarator(None,DirectDeclaratorOnly(Identifier("data")))))))))
+  }
+
+  def check(raw: String) = {
+    val p = createParser()
+    p.parse(raw) match {
+      case CParseSuccess(x) =>
+        assert (true)
+        assert (x.v.nonEmpty)
+      case CParseFail(x) =>
+        assert (false)
+    }
+  }
+
+  test("struct full easy") {
+    val raw = """struct node { int data; }""".stripMargin
+
+    good((pp.structOrUnionSpecifier ~ End).parse(raw), StructOrUnionSpecifier(true,Some(Identifier("node")),List(StructDeclaration(ArrayBuffer(TypeSpecifier("int")),Some(StructDeclaratorList(List(StructDeclaractor1(Declarator(None,DirectDeclaratorOnly(Identifier("data")))))))))))
+  }
+
+  test("struct full complex") {
+    val raw = """struct node { int data; struct node *next; }""".stripMargin
+    good((pp.structOrUnionSpecifier ~ End).parse(raw),
+      StructOrUnionSpecifier(true,
+        Some(Identifier("node")),
+        List(
+          StructDeclaration(ArrayBuffer(
+            TypeSpecifier("int")),
+            Some(StructDeclaratorList(
+              List(
+                StructDeclaractor1(
+                  Declarator(None,DirectDeclaratorOnly(Identifier("data")))))))),
+            StructDeclaration(
+            ArrayBuffer(
+              TypeSpecifier("struct node")),
+            Some(StructDeclaratorList(List(
+              StructDeclaractor1(Declarator(Some("*"),DirectDeclaratorOnly(Identifier("next")))))))))))
+  }
+
+  test("struct with var") {
+    val raw = """struct node { int data; } *head;""".stripMargin
+
+    good((pp.declaration ~ End).parse(raw), StructOrUnionSpecifier(true,Some(Identifier("node")),List(StructDeclaration(ArrayBuffer(TypeSpecifier("int")),Some(StructDeclaratorList(List(StructDeclaractor1(Declarator(None,DirectDeclaratorOnly(Identifier("data")))))))))))
+  }
 
 }

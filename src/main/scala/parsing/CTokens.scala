@@ -10,11 +10,11 @@ case class Exponent(v: Int) {
   def calc(): Float = Math.pow(10, v).toFloat
 }
 sealed trait Token
-sealed trait Constant extends Token with Expression
+sealed trait Constant extends Token with Expression // with PreprocessingToken
 case class IntConstant(v: Int) extends Constant
 case class FloatConstant(v: Float) extends Constant
 case class EnumerationConstant(v: String) extends Constant
-case class CharacterConstant(v: String) extends Constant
+case class CharacterConstant(v: String) extends Constant // with PreprocessingToken
 case class OctalConstant(v: Int)
 case class HexConstant(v: Int)
 case class HexDigit(v: Char)
@@ -26,11 +26,11 @@ sealed trait IdentifierNondigit
 case class IdentifierNondigit1(v: Nondigit) extends IdentifierNondigit
 case class IdentifierNondigit2(v: UniversalCharacterName) extends IdentifierNondigit
 sealed trait Expression
-case class Identifier(v: String) extends Token with Expression
+case class Identifier(v: String) extends Token with Expression // with PreprocessingToken
 case class Keyword(v: String) extends Token
-case class Punctuator(v: String) extends Token
-case class StringLiteral(v: String) extends Token with Expression
-case class HeaderName(v: String) extends Token
+case class Punctuator(v: String) extends Token // with PreprocessingToken
+case class StringLiteral(v: String) extends Token with Expression // with PreprocessingToken
+case class HeaderName(v: String) extends Token // with PreprocessingToken
 case class GenericSelection() extends Expression
 case class PostfixExpressionIndex(v1: Expression, v2: Expression) extends Expression
 case class PostfixExpressionDot(v1: Expression, v2: Expression) extends Expression
@@ -91,7 +91,7 @@ sealed trait IterationStatement extends Statement
 case class IterationWhile(v1: Expression, v2: Statement) extends IterationStatement
 case class IterationDoWhile(v1: Expression, v2: Statement) extends IterationStatement
 case class IterationFor1(v1: Option[Expression], v2: Option[Expression], v3: Option[Expression], v4: Statement) extends IterationStatement
-case class IterationFor2(v1: Expression, v2: Statement) extends IterationStatement
+case class IterationFor2(v: Declaration, v1: Option[Expression], v2: Option[Expression], v3: Statement) extends IterationStatement
 
 sealed trait LabelledStatement extends Statement
 case class LabelledLabel(v1: Identifier, v2: Statement) extends LabelledStatement
@@ -123,7 +123,7 @@ case class TypeQualifier(v: String) extends DeclarationSpecifier
 case class FunctionSpecifier(v: String) extends DeclarationSpecifier
 case class AlignmentSpecifier(v: String) extends DeclarationSpecifier
 
-case class TranslationUnit(v: Seq[ExternalDeclaration])
+case class TranslationUnit(v: Seq[ExternalDeclaration]) extends Top
 sealed trait ExternalDeclaration
 case class FunctionDefinition(spec: DeclarationSpecifiers, dec: Declarator, decs: Option[DeclarationList], v: CompoundStatement) extends ExternalDeclaration
 case class DeclarationList(v: Seq[Declaration])
@@ -137,3 +137,46 @@ sealed trait DirectDeclarator
 case class DirectDeclaratorOnly(v: Identifier) extends DirectDeclarator
 case class DDBracketed(declarator: Declarator) extends DirectDeclarator
 case class FunctionDeclaration(name: Identifier, params: ParameterTypeList) extends DirectDeclarator
+
+case class PreprocessingFile(v: Option[Group]) extends Top
+case class Group(v: Seq[GroupPart])
+sealed trait GroupPart
+case class IfSection(ifGroup: IfGroup, elif: Option[Seq[ElifGroup]], elseGroup: Option[ElseGroup], endif: EndifLine) extends GroupPart
+sealed trait IfGroup
+case class If(exp: Expression, group: Option[Group]) extends IfGroup
+case class IfDef(ident: Identifier, group: Option[Group]) extends IfGroup
+case class IfNDef(ident: Identifier, group: Option[Group]) extends IfGroup
+case class ElifGroup(exp: Expression, group: Option[Group])
+case class EndifLine()
+case class ElseGroup(group: Option[Group])
+sealed trait ControlLine extends GroupPart
+case class Include(v: Seq[PPToken]) extends ControlLine
+case class Define(ident: Identifier, v: ReplacementList) extends ControlLine
+case class Define2(ident: Identifier, v: Option[Seq[Identifier]], v2: ReplacementList) extends ControlLine
+case class Define3(ident: Identifier, v: ReplacementList) extends ControlLine
+case class Define4(ident: Identifier, v: Seq[Identifier]) extends ControlLine
+case class Undef(ident: Identifier) extends ControlLine
+case class Line(v: Seq[PPToken]) extends ControlLine
+case class Error(v: Option[Seq[PPToken]]) extends ControlLine
+case class Pragma(v: Option[Seq[PPToken]]) extends ControlLine
+case class ControlLineEmpty() extends ControlLine
+case class ReplacementList(v: Option[Seq[PPToken]])
+//sealed trait ?PreprocessingToken
+case class PPToken(v: String)
+case class TextLine(pp: Option[Seq[PPToken]]) extends GroupPart
+case class NonDirective(pp: Seq[PPToken]) extends GroupPart
+
+sealed trait StructDeclaractor
+case class StructDeclaractor1(v: Declarator) extends StructDeclaractor
+case class StructDeclaractor2(v: Option[Declarator], exp: Expression) extends StructDeclaractor
+case class StructDeclaratorList(v: Seq[StructDeclaractor])
+case class StructDeclaration(v: Seq[DeclarationSpecifier], v2: Option[StructDeclaratorList])
+case class StructOrUnionSpecifier(isStruct: Boolean, id: Option[Identifier], v2: Seq[StructDeclaration]) extends DeclarationSpecifier {
+  val v = toString
+}
+
+// The C grammar doesn't have a top level that can either be regular C (translation-unit) or the preprocessor (preprocessing-file).
+// Presumably it's because they're handled by separate tools.
+sealed trait Top
+case class CFile(v: Seq[Top])
+

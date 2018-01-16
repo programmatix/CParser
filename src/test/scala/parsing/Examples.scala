@@ -5,14 +5,14 @@ import org.scalatest.FunSuite
 class Examples extends FunSuite {
   test("parse") {
     val parser = new CParser()
-    val parsed: CParseResult = parser.parse(
+    val parsed = parser.parse(
       """int main(int argc) {
         | return 0;
         |}""".stripMargin)
 
     // `parsed` can be CParseSuccess or CParseFail
     parsed match {
-      case CParseSuccess(result: TranslationUnit) =>
+      case CParseSuccess(result: CFile) =>
 
         // If success, the result is an abstract syntax tree corresponding to the C code
         assert (result ==
@@ -50,7 +50,7 @@ class Examples extends FunSuite {
 
   test("parseSnippet") {
     val parser = new CParser()
-    val parsed: CParseResult = parser.parseSnippet("int hello;")
+    val parsed = parser.parseSnippet("int hello;")
 
     // `parsed` can be CParseSuccess or CParseFail
     parsed match {
