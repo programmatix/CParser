@@ -1,5 +1,7 @@
 package parsing
 
+import scala.scalajs.js.|
+
 /** This parses the C language according to the grammar here
   * https://port70.net/~nsz/c/c11/n1570.html#A
   * Converting an input string into an abstract syntax tree.
@@ -383,9 +385,9 @@ class CParser {
 
   lazy val storageClassSpecifier: Parser[StorageClassSpecifier] =
     P(P("typedef") | P("extern") | P("static") | P("_Thread_local") | P("auto") | P("register")).!.map(StorageClassSpecifier)
-  //  lazy val typeSpecifier: Parser[TypeSpecifier] = (P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | structOrUnionSpecifier | enumSpecifier | typedefName).!.map(TypeSpecifier)
   // TODO
-  lazy val typeSpecifier: Parser[TypeSpecifier] = (P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | structOrUnionSpecifier | enumSpecifier).!.map(TypeSpecifier)
+  //  lazy val typeSpecifier: Parser[TypeSpecifier] = (P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | structOrUnionSpecifier | enumSpecifier | typedefName).!.map(TypeSpecifier)
+  lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple) | structOrUnionSpecifier).opaque("typeSpecifier")
 
   lazy val structOrUnionSpecifier: Parser[StructOrUnionSpecifier] =
     P(structOrUnion.! ~ identifier.? ~ P("{") ~ structDeclarationList ~ P("}")).map(v => StructOrUnionSpecifier(v._1 == "struct", v._2, v._3.toList)) |
@@ -393,7 +395,7 @@ class CParser {
   lazy val structOrUnion = P("struct") | P("union")
   lazy val structDeclarationList: Parser[Seq[StructDeclaration]] = structDeclaration.rep(1).map(_.toList)
   lazy val structDeclaration: Parser[StructDeclaration] = P(specifierQualifierList ~ structDeclaratorList.? ~ P(";"))
-    .opaque("structDeclaration").map(v => StructDeclaration(v._1, v._2))
+    .opaque("structDeclaration").map(v => StructDeclaration(v._1.toList, v._2))
   // TODO removing as I've never seen the _Static_assert thing
   //    static_assertDeclaration
   // This is a slightly simplified version of the spec
@@ -528,9 +530,15 @@ class CParser {
     (declarationSpecifiers ~ declarator ~ declarationList.? ~ compoundStatement).opaque("functionDefinition").map(v =>
       FunctionDefinition(v._1, v._2, v._3, v._4))
   val externalDeclaration: Parser[ExternalDeclaration] = functionDefinition | declaration
-  val translationUnit: Parser[TranslationUnit] = externalDeclaration.rep(1).map(v => TranslationUnit(v.toList))
-  lazy val top: Parser[Top] = P(translationUnit | preprocessingFile)
-  lazy val cfile: Parser[CFile] = (top ~ End).rep(1).map(CFile)
+  val translationUnit: Parser[TranslationUnit] = (externalDeclaration | preprocessingFile).rep(1).map(v => TranslationUnit(v.toList))
+//  lazy val top: Parser[Top] = P(translationUnit | preprocessingFile)
+//  lazy val cfile: Parser[CFile] = (top ~ End).rep(1).map(CFile)
+//  lazy val cfile: Parser[CFile] = (translationUnit ~ End).map(v => CFile(v))
+
+
+  // Tweaking the preprocessor definitions as currently they assume a separate tool, which is causing infinite loop issues:
+  // * text-line removed.  This should ensure every preprocessor line has to start with a #
+  // * preprocessing-file doesn't take an opt anymore.
 
   //    A.3 Preprocessing directives
   val preprocessingToken: Parser[PPToken] =
@@ -544,48 +552,50 @@ class CParser {
       //each non-white-space character that cannot be one of the above
     ).opaque("preprocessingToken").!.map(PPToken)
 
+    lazy val preprocessingFile: Parser[PreprocessingFile] = group.map(v => PreprocessingFile(v)).opaque("preprocessingFile")
+    lazy val group: Parser[Group] = groupPart.rep(1).opaque("group").map(Group)
+    //  lazy val groupPart: Parser[GroupPart] = P(ifSection  | controlLine  | textLine | P("#") ~ nonDirective).opaque("groupPart")
+    lazy val groupPart: Parser[GroupPart] = P(ifSection | controlLine | P(P("#") ~ nonDirective)).opaque("groupPart")
+    //  lazy val groupPart: Parser[GroupPart] = P(ifSection).opaque("groupPart")
 
-  lazy val preprocessingFile: Parser[PreprocessingFile] = group.?.map(v => PreprocessingFile(v)).opaque("preprocessingFile")
-  lazy val group: Parser[Group] = groupPart.rep(1).opaque("group").map(Group)
-  lazy val groupPart: Parser[GroupPart] = P(ifSection  | controlLine  | textLine | P("#") ~ nonDirective).opaque("groupPart")
+    lazy val ifSection: Parser[IfSection] = P(ifGroup ~ elifGroups.? ~ elseGroup.? ~ endifLine).map(v => IfSection(v._1, v._2, v._3, v._4)).opaque("ifSection")
+    lazy val ifGroup: Parser[IfGroup] =
+      P(P(P("#") ~ P("if") ~ constantExpression ~ newLine ~ group.?).map(v => If(v._1, v._2)) |
+        P(P("#") ~ P("ifdef") ~ identifier ~ newLine ~ group.?).map(v => IfDef(v._1, v._2)) |
+        P(P("#") ~ P("ifndef") ~ identifier ~ newLine ~ group.?).map(v => IfNDef(v._1, v._2)))
+        .opaque("ifGroup")
+    lazy val elifGroups = elifGroup.rep(1).opaque("elifGroups")
+    lazy val elifGroup: Parser[ElifGroup] =
+      P(P("#") ~ P("elif") ~ constantExpression ~ newLine ~ group.?).map(v => ElifGroup(v._1, v._2)).opaque("elifGroup")
+    lazy val elseGroup: Parser[ElseGroup] =
+      P(P("#") ~ P("else") ~ newLine ~ group.?).opaque("elseGroup").map(ElseGroup)
+    lazy val endifLine: Parser[EndifLine] =
+      P(P("#") ~ P("endif") ~ newLine).map(v => EndifLine()).opaque("endifLine")
 
-  lazy val ifSection: Parser[IfSection] = P(ifGroup ~ elifGroups.? ~ elseGroup.? ~ endifLine).map(v => IfSection(v._1, v._2, v._3, v._4)).opaque("ifSection")
-  lazy val ifGroup: Parser[IfGroup] =
-    P(P(P("#") ~ P("if") ~ constantExpression ~ newLine ~ group.?).map(v => If(v._1, v._2)) |
-      P(P("#") ~ P("ifdef") ~ identifier ~ newLine ~ group.?).map(v => IfDef(v._1, v._2)) |
-      P(P("#") ~ P("ifndef") ~ identifier ~ newLine ~ group.?).map(v => IfNDef(v._1, v._2)))
-      .opaque("ifGroup")
-  lazy val elifGroups = elifGroup.rep(1).opaque("elifGroups")
-  lazy val elifGroup: Parser[ElifGroup] =
-    P(P("#") ~ P("elif") ~ constantExpression ~  newLine ~ group.?).map(v => ElifGroup(v._1, v._2)).opaque("elifGroup")
-  lazy val elseGroup: Parser[ElseGroup] =
-    P(P("#") ~ P("else") ~ newLine ~ group.?).opaque("elseGroup").map(ElseGroup)
-  lazy val endifLine: Parser[EndifLine] =
-    P(P("#") ~ P("endif") ~ newLine).map(v => EndifLine()).opaque("endifLine")
+    lazy val controlLine: Parser[ControlLine] = P(
+      P(P("#") ~ P("include") ~ ppTokens ~ newLine).map(Include) |
+        P(P("#") ~ P("define") ~ identifier ~ replacementList ~ newLine).map(v => Define(v._1, v._2)) |
+        P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList.? ~ P(")") ~ replacementList ~ newLine).map(v => Define2(v._1, v._2, v._3)) |
+        P(P("#") ~ P("define") ~ identifier ~ lparen ~ P("...") ~ P(")") ~ replacementList ~ newLine).map(v => Define3(v._1, v._2)) |
+        P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList ~ P(",") ~ P("...") ~ P(")") ~ replacementList ~ newLine).map(v => Define4(v._1, v._2)) |
+        P(P("#") ~ P("undef") ~ identifier ~ newLine).map(Undef) |
+        P(P("#") ~ P("line") ~ ppTokens ~ newLine).map(Line) |
+        P(P("#") ~ P("error") ~ ppTokens.? ~ newLine).map(v => Error(v)) |
+        P(P("#") ~ P("pragma") ~ ppTokens.? ~ newLine).map(v => Pragma(v)) |
+        P(P("#") ~ newLine).map(v => ControlLineEmpty()))
+      .opaque("controlLine")
 
-  lazy val controlLine: Parser[ControlLine] = P(
-    P(P("#") ~ P("include") ~ ppTokens ~ newLine).map(Include) |
-      P(P("#") ~ P("define") ~ identifier ~ replacementList ~ newLine).map(v => Define(v._1, v._2)) |
-      P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList.? ~ P(")") ~ replacementList ~ newLine).map(v => Define2(v._1, v._2, v._3)) |
-      P(P("#") ~ P("define") ~ identifier ~ lparen ~ P("...") ~ P(")") ~ replacementList ~ newLine).map(v => Define3(v._1, v._2)) |
-      P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList ~ P(",") ~ P("...") ~ P(")") ~ replacementList ~ newLine).map(v => Define4(v._1, v._2)) |
-      P(P("#") ~ P("undef") ~ identifier ~ newLine).map(Undef) |
-      P(P("#") ~ P("line") ~ ppTokens ~ newLine).map(Line) |
-      P(P("#") ~ P("error") ~ ppTokens.? ~ newLine).map(v => Error(v)) |
-      P(P("#") ~ P("pragma") ~ ppTokens.? ~ newLine).map(v => Pragma(v)) |
-      P(P("#") ~ newLine).map(v => ControlLineEmpty()))
-    .opaque("controlLine")
+    //  lazy val textLine: Parser[TextLine] = P(ppTokens.? ~ newLine).opaque("textLine").map(TextLine)
+    lazy val nonDirective: Parser[NonDirective] = P(ppTokens ~ newLine).opaque("nonDirective").map(NonDirective)
 
-  lazy val textLine: Parser[TextLine] = P(ppTokens.? ~ newLine).opaque("textLine").map(TextLine)
-  lazy val nonDirective: Parser[NonDirective] = P(ppTokens ~ newLine).opaque("nonDirective").map(NonDirective)
-  //  lazy val lparen = a ( character not immediately preceded by whiteSpace
-  lazy val lparen = P("(")
-  lazy val replacementList: Parser[ReplacementList] = (ppTokens.?).map(ReplacementList).opaque("replacementList")
-  lazy val ppTokens: Parser[Seq[PPToken]] = preprocessingToken.rep(1).opaque("ppTokens")
-  lazy val newLine = P("\r\n") | P("\n")
+    //  lazy val lparen = a ( character not immediately preceded by whiteSpace
+    lazy val lparen = P("(")
+    lazy val replacementList: Parser[ReplacementList] = (ppTokens.?).map(ReplacementList).opaque("replacementList")
+    lazy val ppTokens: Parser[Seq[PPToken]] = preprocessingToken.rep(1).opaque("ppTokens")
+    lazy val newLine = P("\r\n") | P("\n")
 
-  def parse(in: String): CParseResult[CFile] = {
-    val raw = cfile.parse(in.trim)
+  def parse(in: String): CParseResult[TranslationUnit] = {
+    val raw = translationUnit.parse(in.trim)
     CParseResult.wrap(raw)
   }
 

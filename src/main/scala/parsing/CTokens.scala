@@ -118,13 +118,14 @@ sealed trait DeclarationSpecifier {
 case class DeclarationSpecifiers(v: Seq[DeclarationSpecifier])
 case class Declarator(pointer: Option[String], v: DirectDeclarator)
 case class StorageClassSpecifier(v: String) extends DeclarationSpecifier
-case class TypeSpecifier(v: String) extends DeclarationSpecifier
+sealed trait TypeSpecifier extends DeclarationSpecifier
+case class TypeSpecifierSimple(v: String) extends TypeSpecifier
 case class TypeQualifier(v: String) extends DeclarationSpecifier
 case class FunctionSpecifier(v: String) extends DeclarationSpecifier
 case class AlignmentSpecifier(v: String) extends DeclarationSpecifier
 
-case class TranslationUnit(v: Seq[ExternalDeclaration]) extends Top
-sealed trait ExternalDeclaration
+case class TranslationUnit(v: Seq[Top])
+sealed trait ExternalDeclaration extends Top
 case class FunctionDefinition(spec: DeclarationSpecifiers, dec: Declarator, decs: Option[DeclarationList], v: CompoundStatement) extends ExternalDeclaration
 case class DeclarationList(v: Seq[Declaration])
 
@@ -138,7 +139,7 @@ case class DirectDeclaratorOnly(v: Identifier) extends DirectDeclarator
 case class DDBracketed(declarator: Declarator) extends DirectDeclarator
 case class FunctionDeclaration(name: Identifier, params: ParameterTypeList) extends DirectDeclarator
 
-case class PreprocessingFile(v: Option[Group]) extends Top
+case class PreprocessingFile(v: Group) extends Top
 case class Group(v: Seq[GroupPart])
 sealed trait GroupPart
 case class IfSection(ifGroup: IfGroup, elif: Option[Seq[ElifGroup]], elseGroup: Option[ElseGroup], endif: EndifLine) extends GroupPart
@@ -171,12 +172,14 @@ case class StructDeclaractor1(v: Declarator) extends StructDeclaractor
 case class StructDeclaractor2(v: Option[Declarator], exp: Expression) extends StructDeclaractor
 case class StructDeclaratorList(v: Seq[StructDeclaractor])
 case class StructDeclaration(v: Seq[DeclarationSpecifier], v2: Option[StructDeclaratorList])
-case class StructOrUnionSpecifier(isStruct: Boolean, id: Option[Identifier], v2: Seq[StructDeclaration]) extends DeclarationSpecifier {
+case class StructOrUnionSpecifier(isStruct: Boolean, id: Option[Identifier], v2: Seq[StructDeclaration]) extends DeclarationSpecifier with TypeSpecifier {
   val v = toString
 }
 
 // The C grammar doesn't have a top level that can either be regular C (translation-unit) or the preprocessor (preprocessing-file).
-// Presumably it's because they're handled by separate tools.
+// Presumably it's because they're handled by separate tools.  For convenience, translation-unit gets redefined slightly
+// to take preprocessor statements too.
 sealed trait Top
-case class CFile(v: Seq[Top])
+//case class CFile(v: Seq[Top])
+//case class CFile(v: TranslationUnit)
 

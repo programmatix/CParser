@@ -12,7 +12,7 @@ class Examples extends FunSuite {
 
     // `parsed` can be CParseSuccess or CParseFail
     parsed match {
-      case CParseSuccess(result: CFile) =>
+      case CParseSuccess(result: TranslationUnit) =>
 
         // If success, the result is an abstract syntax tree corresponding to the C code
         assert (result ==
@@ -21,7 +21,7 @@ class Examples extends FunSuite {
               FunctionDefinition(
                 DeclarationSpecifiers(
                   List(
-                    TypeSpecifier("int"))),
+                    TypeSpecifierSimple("int"))),
                 Declarator(None,
                   FunctionDeclaration(
                     Identifier("main"),
@@ -30,7 +30,7 @@ class Examples extends FunSuite {
                         ParameterDeclarationDeclarator(
                           DeclarationSpecifiers(
                             List(
-                              TypeSpecifier("int"))),
+                              TypeSpecifierSimple("int"))),
                           Declarator(
                             None,
                             DirectDeclaratorOnly(
@@ -61,7 +61,7 @@ class Examples extends FunSuite {
           SimpleDeclaration(
             DeclarationSpecifiers(
               List(
-                TypeSpecifier("int"))),
+                TypeSpecifierSimple("int"))),
             Some(
               List(
                 DeclaratorEmpty(
