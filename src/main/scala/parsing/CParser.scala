@@ -165,7 +165,7 @@ class CParser {
 
   lazy val headerName: Parser[HeaderName] = (P(P("<") ~ CharsWhile(v => v != '\n' && v != '>') ~ P(">")) |
     P(P("\"") ~ CharsWhile(v => v != '\n' && v != '"') ~ P("\""))).!.map(v => {
-    HeaderName(v.substring(1, v.size - 1))
+    HeaderName(v.substring(1, v.size - 1), v.charAt(0) == '<')
   })
 
   // This isn't quite what the spec says, but it's a lot simpler and good enough
@@ -557,6 +557,7 @@ class CParser {
   // Tweaking the preprocessor definitions as currently they assume a separate tool, which is causing infinite loop issues:
   // * text-line removed.  This should ensure every preprocessor line has to start with a #
   // * preprocessing-file doesn't take an opt anymore.
+  // * Remove punctuator from ppTokens
 
   //    A.3 Preprocessing directives
   val preprocessingToken: Parser[PPToken] =
@@ -564,8 +565,8 @@ class CParser {
       identifier |
       ppNumber |
       characterConstant |
-      stringLiteral |
-      punctuator
+      stringLiteral
+      // punctuator
       // TODO
       //each non-white-space character that cannot be one of the above
     ).opaque("preprocessingToken")
@@ -573,7 +574,7 @@ class CParser {
   lazy val preprocessingFile: Parser[PreprocessingFile] = group.map(v => PreprocessingFile(v)).opaque("preprocessingFile")
   lazy val group: Parser[Group] = groupPart.rep(1).opaque("group").map(Group)
   //  lazy val groupPart: Parser[GroupPart] = P(ifSection  | controlLine  | textLine | P("#") ~ nonDirective).opaque("groupPart")
-  lazy val groupPart: Parser[GroupPart] = P(ifSection | controlLine | P(P("#") ~ nonDirective)).opaque("groupPart")
+  lazy val groupPart: Parser[GroupPart] = P(ifSection | controlLine | nonDirective).opaque("groupPart")
   //  lazy val groupPart: Parser[GroupPart] = P(ifSection).opaque("groupPart")
 
   lazy val ifSection: Parser[IfSection] = P(ifGroup ~ elifGroups.? ~ elseGroup.? ~ endifLine).map(v => IfSection(v._1, v._2, v._3, v._4)).opaque("ifSection")
@@ -595,7 +596,7 @@ class CParser {
       P(P("#") ~ P("define") ~ identifier ~ replacementList).map(v => Define(v._1, v._2)) |
       P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList.? ~ P(")") ~ replacementList).map(v => Define2(v._1, v._2, v._3)) |
       P(P("#") ~ P("define") ~ identifier ~ lparen ~ P("...") ~ P(")") ~ replacementList).map(v => Define3(v._1, v._2)) |
-      P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList ~ P(",") ~ P("...") ~ P(")") ~ replacementList).map(v => Define4(v._1, v._2)) |
+      P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList ~ P(",") ~ P("...") ~ P(")") ~ replacementList).map(v => Define4(v._1, v._2, v._3)) |
       P(P("#") ~ P("undef") ~ identifier).map(Undef) |
       P(P("#") ~ P("line") ~ ppTokens).map(Line) |
       P(P("#") ~ P("error") ~ ppTokens.?).map(v => Error(v)) |
@@ -604,7 +605,7 @@ class CParser {
     .opaque("controlLine")
 
   //  lazy val textLine: Parser[TextLine] = P(ppTokens.? ~ newLine).opaque("textLine").map(TextLine)
-  lazy val nonDirective: Parser[NonDirective] = P(ppTokens).opaque("nonDirective").map(NonDirective)
+  lazy val nonDirective: Parser[NonDirective] = (P("#") ~ P(ppTokens)).opaque("nonDirective").map(NonDirective)
 
   //  lazy val lparen = a ( character not immediately preceded by whiteSpace
   lazy val lparen = P("(")

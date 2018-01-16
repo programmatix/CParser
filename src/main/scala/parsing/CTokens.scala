@@ -30,7 +30,7 @@ case class Identifier(v: String) extends Token with Expression with PPToken
 case class Keyword(v: String) extends Token
 case class Punctuator(v: String) extends Token with PPToken
 case class StringLiteral(v: String) extends Token with Expression with PPToken
-case class HeaderName(v: String) extends Token with PPToken
+case class HeaderName(v: String, angularBrackets: Boolean) extends Token with PPToken
 case class GenericSelection() extends Expression
 case class PostfixExpressionIndex(v1: Expression, v2: Expression) extends Expression
 case class PostfixExpressionDot(v1: Expression, v2: Expression) extends Expression
@@ -163,7 +163,7 @@ case class Include(v: Seq[PPToken]) extends ControlLine
 case class Define(ident: Identifier, v: ReplacementList) extends ControlLine
 case class Define2(ident: Identifier, v: Option[Seq[Identifier]], v2: ReplacementList) extends ControlLine
 case class Define3(ident: Identifier, v: ReplacementList) extends ControlLine
-case class Define4(ident: Identifier, v: Seq[Identifier]) extends ControlLine
+case class Define4(ident: Identifier, v: Seq[Identifier], v2: ReplacementList) extends ControlLine
 case class Undef(ident: Identifier) extends ControlLine
 case class Line(v: Seq[PPToken]) extends ControlLine
 case class Error(v: Option[Seq[PPToken]]) extends ControlLine
