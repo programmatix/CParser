@@ -16,29 +16,29 @@ And then start playing:
 
 ```
 val parser = new CParser()
-val parsed = p.blockItem.parse("int hello;")
+val parsed: CParseResult = parser.parseSnippet("int hello;")
 
-// `parsed` comes directly from the fastparse library
+// `parsed` can be CParseSuccess or CParseFail
 parsed match {
-    case Parsed.Success(result, index) =>
-        assert (result ==
-              SimpleDeclaration(
-                DeclarationSpecifiers(List(TypeSpecifier("int"))),
-                Some(List(
-                    DeclaratorEmpty(
-                        Declarator(
-                            None,
-                            DirectDeclaratorOnly(Identifier("hello"))
-                        )
-                    )
-                ))
-              )
-            )
-        )
+  case CParseSuccess(result) =>
 
-    case Parsed.Failure(result, index, failure) =>
-        println(failure)
-    }
+    // If success, the result is an abstract syntax tree corresponding to the C code
+    assert (result ==
+      SimpleDeclaration(
+        DeclarationSpecifiers(
+          List(
+            TypeSpecifier("int"))),
+        Some(
+          List(
+            DeclaratorEmpty(
+              Declarator(
+                None,
+                DirectDeclaratorOnly(
+                  Identifier("hello")))))))
+    )
+
+  case CParseFail(result) =>
+    println(result)
 }
 ```
 
@@ -50,6 +50,10 @@ The grammar needed to be refactored somewhat to be parsable.  The biggest change
 ## Parsers
 CParser contains a lot of different parsers, corresponding to each part of the spec. 
 
+It's best to use either parser.parse (for a C file) or parser.parseSnippet (for the contents of a C function).  These return CParseResults.
+
+But you're free to use the individual parsers if needed.  These will return fastparse results, so take a look at the [fastparse docs](http://www.lihaoyi.com/fastparse/) for more on how to handle them.
+ 
 The most useful parsers are:
 
 * parser.translationUnit - this understands a complete C file
@@ -57,9 +61,9 @@ The most useful parsers are:
 * parser.blockItemList - understands a Seq of multiple blockItems
 
 ## Using The Results
-Each parser returns a result from the fastparse library.  The Getting Started above gives a good idea how to use the result, but if you need more then take a look at the [fastparse docs](http://www.lihaoyi.com/fastparse/).
+parse and parseSnippet return a CParseResult, which can be either a CParseSuccess or a CParseFail. 
 
-Wrapped inside a successful fastparse result is an abstract syntax tree (AST) corresponding to the C specification.  
+A CParseSuccess contains an abstract syntax tree (AST) corresponding to the C specification.  These are best explained with an example:  
 
 The top-level of the C grammar is translation-unit:
 
@@ -69,13 +73,17 @@ The top-level of the C grammar is translation-unit:
                 translation-unit external-declaration
 ```   
 
+This says that a translation-unit is made up of a list of at least one external-declaration's.
+
 So the parser.translationUnit parser will return a TranslationUnit() case class, containing a list of ExternalDeclaration():
 
 ```
 case class TranslationUnit(v: Seq[ExternalDeclaration])
 ```
 
-You can walk through these structures, referring to the code and spec to see the options at each stage.  It's not worth documenting every class as they're simple wrappers corresponding nearly 1-to-1 with the C grammar.  
+You can walk through these structures, referring to the code and spec to see the options at each stage.  Every class is a simple wrapper corresponding nearly 1-to-1 with the C grammar.  
+
+A CParseFail contains the index in the input string where parsing failed, along with an attempt to explain the failure.  As long as you're providing valid C code there shouldn't be parse errors - please raise an issue if you do see them.  
 
 ## Contributing
 

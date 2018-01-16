@@ -4,9 +4,6 @@ import fastparse.all._
 import fastparse.core.Parsed
 import org.scalatest.FunSuite
 
-import scala.collection.immutable.Stream
-import scala.collection.immutable.Stream.Empty
-
 // For testing small parts of the CParser
 class IndividualParserSpec extends FunSuite {
 
@@ -460,7 +457,7 @@ class IndividualParserSpec extends FunSuite {
     DeclarationSpecifiers(List(TypeSpecifier("int"))),
     Some(List(DeclaratorEmpty(Declarator(None,DirectDeclaratorOnly(Identifier("hello")))))))
 
-      test("int hello") {
+  test("int hello") {
     val p = createParser()
     good(p.blockItem.parse("int hello;"),helloDec)
   }
@@ -482,8 +479,36 @@ class IndividualParserSpec extends FunSuite {
   }
 
   test("comment testing 1") {
-//    P(P("/*") ~ (!P("*/")).rep(0) ~ P("*/")).parse("/* */").get
+    //    P(P("/*") ~ (!P("*/")).rep(0) ~ P("*/")).parse("/* */").get
     P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* */").get
+  }
+
+  test("docs") {
+    val parser = new CParser()
+    val parsed: CParseResult = parser.parseSnippet("int hello;")
+
+    // `parsed` can be CParseSuccess or CParseFail
+    parsed match {
+      case CParseSuccess(result) =>
+
+        // If success, the result is an abstract syntax tree corresponding to the C code
+        assert (result ==
+          SimpleDeclaration(
+            DeclarationSpecifiers(
+              List(
+                TypeSpecifier("int"))),
+            Some(
+              List(
+                DeclaratorEmpty(
+                  Declarator(
+                    None,
+                    DirectDeclaratorOnly(
+                      Identifier("hello")))))))
+        )
+
+      case CParseFail(result) =>
+        println(result)
+    }
   }
 
 }
