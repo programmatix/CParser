@@ -26,7 +26,7 @@ case class CParseFail[T, Elem, Repr](parsed: Parsed[T, Elem, Repr]) extends CPar
 object CParseResult {
   def wrap[T, Elem, Repr](in: Parsed[T, Elem, Repr]): CParseResult = {
     in match {
-      case Parsed.Success(x, y)                 => CParseSuccess(in)
+      case Parsed.Success(x, y)                 => CParseSuccess(x)
       case Parsed.Failure(x, failIndex: Int, z) => CParseFail(in)
     }
   }

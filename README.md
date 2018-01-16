@@ -12,34 +12,85 @@ Clone the project.  Add the single required dependency on the lihaoyi's excellen
 libraryDependencies += "com.lihaoyi" %%% "fastparse" % "1.0.0"
 ```
 
-And then start playing:
+There's two main entry points.  CParser.parseSnippet is for parsing a snippet of C code - something you'd find inside a C function.
+CParser.parse is for parsing a C translation unite - which can be as small as a single function, or as big as a full C file. 
+
+Both functions return a CParseSuccess if they can parse the input, containing an abstract syntax tree in the form of nested case classes.
+parseSnippet returns a Seq of BlockItem, each corresponding to block-item in the C specification, which roughly means "a line of C code". 
 
 ```
-val parser = new CParser()
-val parsed: CParseResult = parser.parseSnippet("int hello;")
+    val parser = new CParser()
+    val parsed: CParseResult = parser.parseSnippet("int hello;")
 
-// `parsed` can be CParseSuccess or CParseFail
-parsed match {
-  case CParseSuccess(result) =>
+    // `parsed` can be CParseSuccess or CParseFail
+    parsed match {
+      case CParseSuccess(result: Seq[BlockItem]) =>
 
-    // If success, the result is an abstract syntax tree corresponding to the C code
-    assert (result ==
-      SimpleDeclaration(
-        DeclarationSpecifiers(
-          List(
-            TypeSpecifier("int"))),
-        Some(
-          List(
-            DeclaratorEmpty(
-              Declarator(
+        // If success, the result is an abstract syntax tree corresponding to the C code
+        assert (result.head ==
+          SimpleDeclaration(
+            DeclarationSpecifiers(
+              List(
+                TypeSpecifier("int"))),
+            Some(
+              List(
+                DeclaratorEmpty(
+                  Declarator(
+                    None,
+                    DirectDeclaratorOnly(
+                      Identifier("hello")))))))
+        )
+
+      case CParseFail(result) =>
+        println(result)
+    }
+```
+
+parse returns a TranslationUnit, corresponding to translation-unit in the spec, which roughly means 'a complete C file'.
+
+```
+    val parser = new CParser()
+    val parsed: CParseResult = parser.parse(
+      """int main(int argc) {
+        | return 0;
+        |}""".stripMargin)
+
+    // `parsed` can be CParseSuccess or CParseFail
+    parsed match {
+      case CParseSuccess(result: TranslationUnit) =>
+
+        // If success, the result is an abstract syntax tree corresponding to the C code
+        assert (result ==
+          TranslationUnit(
+            List(
+              FunctionDefinition(
+                DeclarationSpecifiers(
+                  List(
+                    TypeSpecifier("int"))),
+                Declarator(None,
+                  FunctionDeclaration(
+                    Identifier("main"),
+                    ParameterTypeList(
+                      List(
+                        ParameterDeclarationDeclarator(
+                          DeclarationSpecifiers(
+                            List(
+                              TypeSpecifier("int"))),
+                          Declarator(
+                            None,
+                            DirectDeclaratorOnly(
+                              Identifier("argc"))))),
+                      ellipses = false))),
                 None,
-                DirectDeclaratorOnly(
-                  Identifier("hello")))))))
-    )
+                CompoundStatement(
+                  List(
+                    Return(
+                      Some(IntConstant(0))))))))
+        )
 
-  case CParseFail(result) =>
-    println(result)
-}
+      case CParseFail(result) =>
+        println(result)
+    }
 ```
 
 ## C Language
@@ -47,7 +98,7 @@ This parser understands the C language grammar defined in [Annex A of this C spe
 
 The grammar needed to be refactored somewhat to be parsable.  The biggest change was removing left-recursion throughout.  Overall though, you won't have much problem matching up the code with the spec.
 
-## Parsers
+## Granular Parsers
 CParser contains a lot of different parsers, corresponding to each part of the spec. 
 
 It's best to use either parser.parse (for a C file) or parser.parseSnippet (for the contents of a C function).  These return CParseResults.

@@ -49,12 +49,12 @@ class CParser {
 
   val decimalConstant = {
     import fastparse.all._
-    P(CharIn('1' to '9') ~ CharIn('0' to '9').rep(0)).!.map(v =>
+    P(CharIn('1' to '9') ~ CharIn('0' to '9').rep(0)).!.opaque("decimalConstant").map(v =>
       IntConstant(Integer.parseInt(v, 10)))
   }
   val octalConstant = {
     import fastparse.all._
-    P("0" ~ CharIn('0' to '7').rep(0)).!.map(v =>
+    P("0" ~ CharIn('0' to '7').rep(0)).!.opaque("octalConstant").map(v =>
       IntConstant(Integer.parseInt(v, 8)))
   }
 
@@ -62,7 +62,8 @@ class CParser {
   private val White = fastparse.WhitespaceApi.Wrapper {
     import fastparse.all._
     val comment = P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/").opaque("comment")
-    NoTrace(CharIn(" \t\n").rep | P("\r\n").rep | comment.rep)
+    val whitespace = P(CharIn(" \t\n\r").rep | P("\r\n").rep | comment.rep).opaque("whitespace")
+    NoTrace(whitespace)
   }
   import fastparse.noApi._
   import White._
@@ -75,7 +76,7 @@ class CParser {
     P("enum") | P("extern") | P("float") | P("for") | P("goto") | P("if") | P("inline") | P("int") | P("long") | P("register") | P("restrict") |
     P("return") | P("short") | P("signed") | P("sizeof") | P("static") | P("struct") | P("switch") | P("typedef") | P("union") | P("unsigned") |
     P("void") | P("volatile") | P("while") | P("_Alignas") | P("_Alignof") | P("_Atomic") | P("_Bool") | P("_Complex") | P("_Generic") |
-    P("_Imaginary") | P("_Noreturn") | P("_Static_assert") | P("_Thread_local")).!.map(v => Keyword(v))
+    P("_Imaginary") | P("_Noreturn") | P("_Static_assert") | P("_Thread_local")).!.opaque("keyword").map(v => Keyword(v))
 
 
   lazy val constant: Parser[Constant] = P(integerConstant | floatingConstant).opaque("constant")
@@ -497,18 +498,18 @@ class CParser {
     P(P("_Static_assert") ~ P("(") ~ constantExpression ~ P(",") ~ stringLiteral ~ P(")") ~ P(";"))
       .map(v => StaticAssertDeclaration(v._1, v._2))
 
-  val statement: Parser[Statement] = P(labeledStatement) |
+  val statement: Parser[Statement] = P(P(labeledStatement) |
     P(compoundStatement) |
     P(expressionStatement) |
     P(selectionStatement) |
     P(iterationStatement) |
-    P(jumpStatement)
+    P(jumpStatement)).opaque("statement")
   val labeledStatement: Parser[LabelledStatement] = (identifier ~ P(":") ~ statement).map(v => LabelledLabel(v._1, v._2))
   P(P("case") ~ constantExpression ~ P(":") ~ statement).map(v => LabelledCase(v._1, v._2)) |
     P(P("default") ~ P(":") ~ statement).map(v => LabelledDefault(v))
   val compoundStatement: Parser[CompoundStatement] = P("{") ~ blockItemList.?.opaque("compoundStatement").map(v => CompoundStatement(v.getOrElse(List()))) ~ P("}")
   lazy val blockItemList: Parser[Seq[BlockItem]] = blockItem.rep(1).opaque("blockItemList").map(v => v.toList)
-  lazy val blockItem: Parser[BlockItem] = declaration | statement
+  lazy val blockItem: Parser[BlockItem] = (declaration | statement).opaque("blockItem")
   val expressionStatement: Parser[Statement] = (expression.? ~ P(";")).map(v => if (v.isDefined) ExpressionStatement(v.get) else ExpressionEmptyStatement())
   val selectionStatement: Parser[SelectionStatement] = P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement).map(v => SelectionIf(v._1, v._2)) |
     P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement ~ P("else") ~ statement).map(v => SelectionIfElse(v._1, v._2, v._3)) |

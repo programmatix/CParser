@@ -470,7 +470,7 @@ class IndividualParserSpec extends FunSuite {
 
   test("comment middle") {
     val p = createParser()
-    good((p.blockItem ~ End).parse("int /*comment*/hello;"), helloDec)
+    good((p.blockItem ~ End).parse("int /* comment */hello;"), helloDec)
   }
 
   test("comment start") {
@@ -478,37 +478,18 @@ class IndividualParserSpec extends FunSuite {
     good((p.blockItem ~ End).parse("/*comment*/int hello;"), helloDec)
   }
 
+  test("comment single line") {
+    val p = createParser()
+    good((p.blockItem ~ End).parse("int hello;//i'm a comment"), helloDec)
+    good((p.blockItem ~ End).parse("int hello; //i'm a comment"), helloDec)
+    good((p.blockItem ~ End).parse("int hello; // i'm a comment"), helloDec)
+  }
+
   test("comment testing 1") {
-    //    P(P("/*") ~ (!P("*/")).rep(0) ~ P("*/")).parse("/* */").get
     P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* */").get
+    P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* hello */").get
+    P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* hello world */").get
   }
 
-  test("docs") {
-    val parser = new CParser()
-    val parsed: CParseResult = parser.parseSnippet("int hello;")
-
-    // `parsed` can be CParseSuccess or CParseFail
-    parsed match {
-      case CParseSuccess(result) =>
-
-        // If success, the result is an abstract syntax tree corresponding to the C code
-        assert (result ==
-          SimpleDeclaration(
-            DeclarationSpecifiers(
-              List(
-                TypeSpecifier("int"))),
-            Some(
-              List(
-                DeclaratorEmpty(
-                  Declarator(
-                    None,
-                    DirectDeclaratorOnly(
-                      Identifier("hello")))))))
-        )
-
-      case CParseFail(result) =>
-        println(result)
-    }
-  }
 
 }
