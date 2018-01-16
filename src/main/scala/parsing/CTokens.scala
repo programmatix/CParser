@@ -1,5 +1,8 @@
 package parsing
 
+/** These tokens are everything used in the abstract syntax tree for C.
+  * They map pretty much one-to-one with the spec // https://port70.net/~nsz/c/c11/n1570.html#A
+  */
 case class Nondigit(v: Char)
 case class Digit(v: Char)
 case class DecimalConstant(v: Int)
@@ -20,7 +23,6 @@ sealed trait UniversalCharacterName
 case class UniversalCharacterName1(v: HexQuad) extends UniversalCharacterName
 case class UniversalCharacterName2(v1: HexQuad, v2: HexQuad) extends UniversalCharacterName
 sealed trait IdentifierNondigit
-//sealed trait PrimaryExpression
 case class IdentifierNondigit1(v: Nondigit) extends IdentifierNondigit
 case class IdentifierNondigit2(v: UniversalCharacterName) extends IdentifierNondigit
 sealed trait Expression
@@ -37,26 +39,9 @@ case class PostfixExpressionMinusMinus(v1: Expression) extends Expression
 case class PostfixExpressionArrow(v1: Expression, v2: Expression) extends Expression
 case class PostfixExpressionArgs(v1: Expression, v2: Option[ArgumentExpressionList]) extends Expression
 case class PostfixExpressionSimple(v1: Expression) extends Expression
-case class PostfixLeft(v: Expression)
-sealed trait PostfixRight
-case class PostfixRightIndex(v1: Expression) extends PostfixRight
-case class PostfixRightDot(v1: Expression) extends PostfixRight
-case class PostfixRightPlusPlus() extends PostfixRight
-case class PostfixRightMinusMinus() extends PostfixRight
-case class PostfixRightArrow(v1: Expression) extends PostfixRight
-case class PostfixRightArgs(v2: Option[ArgumentExpressionList]) extends PostfixRight
-case class PostfixRight2(op: PostfixRight, next: PostfixRight2)
-case class Empty() extends PostfixRight with MultiplicativeBuild with DDBuild
-
-sealed trait MultiplicativeBuild
-//case class MultiplicativeBuildMultiply() extends MultiplicativeBuild
-case class BinaryOpBuildWrap(op: String, next: Expression)
-case class BinaryOpBuildWrap2(op: String, next: BinaryOpBuildWrap2)
-case class TernaryOpBuildWrap(op1: String, op2: String, v1: Expression, v2: Expression)
 
 sealed trait UnaryExpression extends Expression
 case class UnaryPlusPlus(v: Expression) extends UnaryExpression
-
 
 case class ArgumentExpressionList(v: Seq[Expression]) extends Expression
 case class UnaryExpressionPlusPlus(v: Expression) extends Expression
@@ -65,7 +50,6 @@ case class UnaryExpressionCast(v: Char, v2: Expression) extends Expression
 case class UnaryExpressionSizeOf(v: Expression) extends Expression
 case class UnaryExpressionSizeOfType(v: TypeName) extends Expression
 case class UnaryExpressionAlignOf(v: TypeName) extends Expression
-//case class UnaryExpressionPlusPlus(v: TypeName) extends Expression
 case class TypeName(v: String)
 case class CastExpression(v: TypeName, v2: Expression) extends Expression
 case class ExpressionMultiply(v1: Expression, v2: Expression) extends Expression
@@ -145,18 +129,10 @@ case class FunctionDefinition(spec: DeclarationSpecifiers, dec: Declarator, decs
 case class DeclarationList(v: Seq[Declaration])
 
 case class ParameterTypeList(v: Seq[ParameterDeclaration], ellipses: Boolean)
-//case class ParameterList(v: Seq[ParameterDeclaration])
 sealed trait ParameterDeclaration
 case class ParameterDeclarationDeclarator(v: DeclarationSpecifiers, v2: Declarator) extends ParameterDeclaration
-//case class ParameterDeclarationAbstractDeclarator(v: DeclarationSpecifiers, v2: Option[AbstractDeclarator]) extends ParameterDeclaration
 
 sealed trait DirectDeclarator
-sealed trait DDBuild
-case class DDBuild2(me: DDBuild, next: DDBuild2)
-case class DDBuildParameterTypeList(v: ParameterTypeList) extends DDBuild
-case class DDBuildIdentifierList(v: Option[Seq[Identifier]]) extends DDBuild
-case class DDBuildTypeQualifierList(v: Option[Seq[TypeQualifier]]) extends DDBuild
-case class DDBuildTypeQualifierListAssignment(v: Option[Seq[TypeQualifier]], v2: Option[Expression]) extends DDBuild
 
 case class DirectDeclaratorOnly(v: Identifier) extends DirectDeclarator
 case class DDBracketed(declarator: Declarator) extends DirectDeclarator

@@ -2,7 +2,7 @@ package CParser
 
 import fastparse.core.Parsed
 import org.scalatest.FunSuite
-import parsing.CParser
+import parsing.{CParseFail, CParseSuccess, CParser}
 
 // For testing bigger functions and whole files
 class BigParserSpec extends FunSuite {
@@ -35,7 +35,20 @@ class BigParserSpec extends FunSuite {
         |}
       """.stripMargin
       val p = createParser()
-    println(p.functionDefinition.parse(raw))
-//    good(p.top.parse(raw), HexDigit('d'))
+    p.functionDefinition.parse(raw).get
+  }
+
+  test("comment") {
+    val raw = """// Replace all this with any valid C code
+                |
+                |int main(int argc) {
+                |    return 0;
+                |}
+                |                """.stripMargin
+    val p = createParser()
+    p.parse(raw) match {
+      case CParseSuccess(x) => assert (true)
+      case CParseFail(x) => assert (false)
+    }
   }
 }

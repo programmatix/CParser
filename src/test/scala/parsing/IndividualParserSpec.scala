@@ -4,6 +4,9 @@ import fastparse.all._
 import fastparse.core.Parsed
 import org.scalatest.FunSuite
 
+import scala.collection.immutable.Stream
+import scala.collection.immutable.Stream.Empty
+
 // For testing small parts of the CParser
 class IndividualParserSpec extends FunSuite {
 
@@ -47,7 +50,10 @@ class IndividualParserSpec extends FunSuite {
       case Parsed.Failure(x, y, z) =>
         //        println(s"Wanted:  ${expected}")
         //        dump("", p)
-        println(s"Parse failure: ${p}")
+        val wrap = CParseResult.wrapFailed(p)
+        println(wrap)
+        val traced = z.traced
+        println(s"Parse failure: ${z.traced}")
         //        println(p)
         //        println(x)
         //        println(y)
@@ -389,8 +395,8 @@ class IndividualParserSpec extends FunSuite {
     val p = createParser()
     val parsed = (p.directDeclaratorHelper ~ End).parse("(int argc)")
     good(parsed,
-      DDBuild2(
-        DDBuildParameterTypeList(
+      p.DDBuild2(
+        p.DDBuildParameterTypeList(
           ParameterTypeList(
             List(ParameterDeclarationDeclarator(
               DeclarationSpecifiers(List(TypeSpecifier("int"))),
@@ -398,7 +404,7 @@ class IndividualParserSpec extends FunSuite {
             false
           )
         ),
-        DDBuild2(Empty(),null)
+        p.DDBuild2(p.Empty(),null)
       )
     )
   }
@@ -450,13 +456,34 @@ class IndividualParserSpec extends FunSuite {
     )
   }
 
-  test("int hello") {
+  val helloDec = SimpleDeclaration(
+    DeclarationSpecifiers(List(TypeSpecifier("int"))),
+    Some(List(DeclaratorEmpty(Declarator(None,DirectDeclaratorOnly(Identifier("hello")))))))
+
+      test("int hello") {
     val p = createParser()
-    good(p.blockItem.parse("int hello;"),
-      SimpleDeclaration(
-        DeclarationSpecifiers(List(TypeSpecifier("int"))),
-        Some(List(DeclaratorEmpty(Declarator(None,DirectDeclaratorOnly(Identifier("hello")))))))
-    )
+    good(p.blockItem.parse("int hello;"),helloDec)
+  }
+
+
+  test("comment end") {
+    val p = createParser()
+    good((p.blockItem ~ End).parse("int hello;/*comment*/"), helloDec)
+  }
+
+  test("comment middle") {
+    val p = createParser()
+    good((p.blockItem ~ End).parse("int /*comment*/hello;"), helloDec)
+  }
+
+  test("comment start") {
+    val p = createParser()
+    good((p.blockItem ~ End).parse("/*comment*/int hello;"), helloDec)
+  }
+
+  test("comment testing 1") {
+//    P(P("/*") ~ (!P("*/")).rep(0) ~ P("*/")).parse("/* */").get
+    P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* */").get
   }
 
 }
