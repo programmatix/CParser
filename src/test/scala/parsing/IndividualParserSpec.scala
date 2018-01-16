@@ -470,27 +470,28 @@ class IndividualParserSpec extends FunSuite {
 
   test("comment end") {
     val p = createParser()
-    good((p.blockItem ~ End).parse("int hello;/*comment*/"), helloDec)
+    good((p.declaration ~ End).parse("int hello;/*comment*/"), helloDec)
   }
 
   test("comment middle") {
     val p = createParser()
-    good((p.blockItem ~ End).parse("int /* comment */hello;"), helloDec)
+    good((p.declaration ~ End).parse("int/*comment*/hello;"), helloDec)
   }
 
   test("comment start") {
     val p = createParser()
-    good((p.blockItem ~ End).parse("/*comment*/int hello;"), helloDec)
+    good((p.declaration ~ End).parse("/*comment*/int hello;"), helloDec)
   }
 
   test("comment single line") {
     val p = createParser()
-    good((p.blockItem ~ End).parse("int hello;//i'm a comment"), helloDec)
-    good((p.blockItem ~ End).parse("int hello; //i'm a comment"), helloDec)
-    good((p.blockItem ~ End).parse("int hello; // i'm a comment"), helloDec)
+    good((p.declaration).parse("int hello;//i'm a comment"), helloDec)
+    good((p.declaration).parse("int hello; //i'm a comment"), helloDec)
+    good((p.declaration).parse("int hello; // i'm a comment"), helloDec)
   }
 
   test("comment testing 1") {
+    P(((!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* */").get
     P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* */").get
     P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* hello */").get
     P(P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/")).parse("/* hello world */").get

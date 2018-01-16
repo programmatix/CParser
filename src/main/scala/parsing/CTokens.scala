@@ -98,6 +98,7 @@ case class LabelledLabel(v1: Identifier, v2: Statement) extends LabelledStatemen
 case class LabelledCase(v1: Expression, v2: Statement) extends LabelledStatement
 case class LabelledDefault(v2: Statement) extends LabelledStatement
 
+// >>int hello;<<
 sealed trait Declaration extends ExternalDeclaration with BlockItem
 case class SimpleDeclaration(spec: DeclarationSpecifiers, init: Option[Seq[InitDeclarator]]) extends Declaration
 case class StaticAssertDeclaration(v1: Expression, v2: StringLiteral) extends Declaration
@@ -105,13 +106,20 @@ case class StatementDeclaration(v: Declaration) extends Statement
 case class CompoundStatement(v: Seq[BlockItem]) extends Statement
 //case class BlockItemList(v: Seq[BlockItem])
 sealed trait BlockItem
+
 sealed trait InitDeclarator
+// int >>hello<<;
 case class DeclaratorEmpty(declarator: Declarator) extends InitDeclarator
+// int >>hello=3<<;
 case class DeclaratorWithInit(declarator: Declarator, init: Initializer) extends InitDeclarator
+
 sealed trait Initializer
+// int hello=>>3<<;
 case class InitializerSimple(exp: Expression) extends Initializer
+// int hello[] = >>{1,2,3]<<;
 case class InitializerList(exp: Expression) extends Initializer
 
+// >>int<< hello;
 sealed trait DeclarationSpecifier {
   val v: String
 }
