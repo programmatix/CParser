@@ -50,6 +50,7 @@ case class UnaryExpressionCast(v: Char, v2: Expression) extends Expression
 case class UnaryExpressionSizeOf(v: Expression) extends Expression
 case class UnaryExpressionSizeOfType(v: TypeName) extends Expression
 case class UnaryExpressionAlignOf(v: TypeName) extends Expression
+//case class TypeName(v: String, abs: Option[AbstractDeclarator])
 case class TypeName(v: String)
 case class CastExpression(v: TypeName, v2: Expression) extends Expression
 case class ExpressionMultiply(v1: Expression, v2: Expression) extends Expression
@@ -131,6 +132,8 @@ case class TypeSpecifierSimple(v: String) extends TypeSpecifier
 case class TypeQualifier(v: String) extends DeclarationSpecifier
 case class FunctionSpecifier(v: String) extends DeclarationSpecifier
 case class AlignmentSpecifier(v: String) extends DeclarationSpecifier
+
+case class AbstractDeclarator(v: String)
 
 case class TranslationUnit(v: Seq[Top])
 sealed trait ExternalDeclaration extends Top

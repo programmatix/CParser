@@ -650,6 +650,13 @@ class IndividualParserSpec extends FunSuite {
     TestUtils.checkSnippet("right=(struct node *)head;")
   }
 
+  test("(struct node *)head") {
+    TestUtils.passes(pp.structOrUnionSpecifier, "struct node *")
+    TestUtils.passes((pp.typeName ~ End), "struct node *", true)
+    TestUtils.passes(pp.castExpression, "(struct node *)head")
+    TestUtils.passes(pp.conditionalExpression, "(struct node *)head")
+  }
+
   test("right=3;") {
     TestUtils.getAndMatchSnippet("right=3;", ExpressionAssignment(Identifier("right"), IntConstant(3)))
   }

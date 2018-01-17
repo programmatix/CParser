@@ -93,7 +93,6 @@ object TestUtils {
           case _ => assert(false, s"Could not find instance in ${x}")
         }
 
-        x
       //        assert (x.v.nonEmpty)
       case CParseFail(x) =>
         println(parsed)
@@ -102,10 +101,26 @@ object TestUtils {
     }
   }
 
-  //  def get[Want, T <: Product](in: T): Option[Want] = {
-  //    get[Want](in)
-  //  }
+//  def getAndMatchSnippet[Want: ru.TypeTag, T](raw: String, compareTo: Want, print: Boolean = false): Unit = {
+//    val pp = createParser()
+//    getAndMatch(pp.blockItemList, raw, compareTo, print)
+//  }
 
+  def passes[T](parser: Parser[T, Char, String], raw: String, print: Boolean = false): Unit = {
+    val parsedRaw = parser.parse(raw)
+    val parsed = CParseResult.wrap(parsedRaw)
+    parsed match {
+      case CParseSuccess(x) =>
+        if (print) {
+          PPrinter.Color.log(parsed, width = 50, height = 1000)
+        }
+
+      case CParseFail(x) =>
+        println(parsed)
+        assert (false)
+        null
+    }
+  }
 
   def createParser() = new CParser
 
@@ -126,6 +141,7 @@ object TestUtils {
         null
     }
   }
+
 
   def checkSnippet(raw: String, print: Boolean = false): Seq[BlockItem] = {
     val p = createParser()

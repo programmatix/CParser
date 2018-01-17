@@ -13,26 +13,44 @@ class CParser {
 
   // These are used temporarily while creating the AST but don't form part of the final AST
   private[parsing] case class PostfixLeft(v: Expression)
-  private[parsing] sealed trait PostfixRight
-  private[parsing] case class PostfixRightIndex(v1: Expression) extends PostfixRight
-  private[parsing] case class PostfixRightDot(v1: Expression) extends PostfixRight
-  private[parsing] case class PostfixRightPlusPlus() extends PostfixRight
-  private[parsing] case class PostfixRightMinusMinus() extends PostfixRight
-  private[parsing] case class PostfixRightArrow(v1: Expression) extends PostfixRight
-  private[parsing] case class PostfixRightArgs(v2: Option[ArgumentExpressionList]) extends PostfixRight
-  private[parsing] case class PostfixRight2(op: PostfixRight, next: PostfixRight2)
-  private[parsing] sealed trait DDBuild
-  private[parsing] case class DDBuild2(me: DDBuild, next: DDBuild2)
-  private[parsing] case class DDBuildParameterTypeList(v: ParameterTypeList) extends DDBuild
-  private[parsing] case class DDBuildIdentifierList(v: Option[Seq[Identifier]]) extends DDBuild
-  private[parsing] case class DDBuildTypeQualifierList(v: Option[Seq[TypeQualifier]]) extends DDBuild
-  private[parsing] case class DDBuildTypeQualifierListAssignment(v: Option[Seq[TypeQualifier]], v2: Option[Expression]) extends DDBuild
-  private[parsing] sealed trait MultiplicativeBuild
-  private[parsing] case class BinaryOpBuildWrap(op: String, next: Expression)
-  private[parsing] case class BinaryOpBuildWrap2(op: String, next: BinaryOpBuildWrap2)
-  private[parsing] case class TernaryOpBuildWrap(op1: String, op2: String, v1: Expression, v2: Expression)
-  private[parsing] case class Empty() extends PostfixRight with MultiplicativeBuild with DDBuild
 
+  private[parsing] sealed trait PostfixRight
+
+  private[parsing] case class PostfixRightIndex(v1: Expression) extends PostfixRight
+
+  private[parsing] case class PostfixRightDot(v1: Expression) extends PostfixRight
+
+  private[parsing] case class PostfixRightPlusPlus() extends PostfixRight
+
+  private[parsing] case class PostfixRightMinusMinus() extends PostfixRight
+
+  private[parsing] case class PostfixRightArrow(v1: Expression) extends PostfixRight
+
+  private[parsing] case class PostfixRightArgs(v2: Option[ArgumentExpressionList]) extends PostfixRight
+
+  private[parsing] case class PostfixRight2(op: PostfixRight, next: PostfixRight2)
+
+  private[parsing] sealed trait DDBuild
+
+  private[parsing] case class DDBuild2(me: DDBuild, next: DDBuild2)
+
+  private[parsing] case class DDBuildParameterTypeList(v: ParameterTypeList) extends DDBuild
+
+  private[parsing] case class DDBuildIdentifierList(v: Option[Seq[Identifier]]) extends DDBuild
+
+  private[parsing] case class DDBuildTypeQualifierList(v: Option[Seq[TypeQualifier]]) extends DDBuild
+
+  private[parsing] case class DDBuildTypeQualifierListAssignment(v: Option[Seq[TypeQualifier]], v2: Option[Expression]) extends DDBuild
+
+  private[parsing] sealed trait MultiplicativeBuild
+
+  private[parsing] case class BinaryOpBuildWrap(op: String, next: Expression)
+
+  private[parsing] case class BinaryOpBuildWrap2(op: String, next: BinaryOpBuildWrap2)
+
+  private[parsing] case class TernaryOpBuildWrap(op1: String, op2: String, v1: Expression, v2: Expression)
+
+  private[parsing] case class Empty() extends PostfixRight with MultiplicativeBuild with DDBuild
 
 
   // Whitespace sensitive parsers go here
@@ -49,18 +67,18 @@ class CParser {
       import fastparse.all._
       //    val comment = P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/").opaque("comment")
       val multilineComment = P(P("/*") ~ (!P("*/") ~ AnyChar).rep ~ P("*/")).opaque("comment")
-//      val singleComment = P(P("//") ~ (!CharIn("\n") ~ AnyChar).rep ~ P("\n")).opaque("comment")
+      //      val singleComment = P(P("//") ~ (!CharIn("\n") ~ AnyChar).rep ~ P("\n")).opaque("comment")
       //    val comment = ((!"*/" ~ AnyChar).rep ~ "*/").opaque("comment")
       //    val whitespace = P(CharIn(" \t\n\r").rep | P("\r\n").rep | comment.rep).opaque("whitespace")
-      val whitespace = P(multilineComment| CharIn(" \t")).rep.opaque("whitespace")
+      val whitespace = P(multilineComment | CharIn(" \t")).rep.opaque("whitespace")
       //    val whitespace = P(comment).opaque("whitespace")
       //    val whitespace = comment
       NoTrace(whitespace)
     }
     import WhitePP._
     import fastparse.noApi._
-//    import fastparse.api._
-//    import fastparse.all._
+    //    import fastparse.api._
+    //    import fastparse.all._
 
     lazy val headerName: Parser[HeaderName] = (P(P("<") ~ CharsWhile(v => v != '\r' && v != '\n' && v != '>') ~ P(">")) |
       P(P("\"") ~ CharsWhile(v => v != '\r' && v != '\n' && v != '"') ~ P("\""))).!.map(v => {
@@ -123,7 +141,7 @@ class CParser {
 
     // The &P("#") is a performance improvement, all preprocessor directives need to start with this
     (P(&(P("#"))) ~/ group).map(v => PreprocessingFile(v)).opaque("preprocessingFile")
-//    (group).map(v => PreprocessingFile(v)).opaque("preprocessingFile")
+    //    (group).map(v => PreprocessingFile(v)).opaque("preprocessingFile")
   }
 
   val identifier: fastparse.all.Parser[Identifier] = {
@@ -156,16 +174,17 @@ class CParser {
   // Ignore whitespace
   private val White = fastparse.WhitespaceApi.Wrapper {
     import fastparse.all._
-//    val comment = P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/").opaque("comment")
+    //    val comment = P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/").opaque("comment")
     val multilineComment = P(P("/*") ~/ (!P("*/") ~ AnyChar).rep ~ P("*/")).opaque("comment")
     val singleComment = P(P("//") ~ (!CharIn("\n") ~ AnyChar).rep ~ P("\n")).opaque("comment")
-//    val comment = ((!"*/" ~ AnyChar).rep ~ "*/").opaque("comment")
-//    val whitespace = P(CharIn(" \t\n\r").rep | P("\r\n").rep | comment.rep).opaque("whitespace")
-    val whitespace = P(singleComment|multilineComment| CharIn(" \t\n\r")|P("\r\n")).rep.opaque("whitespace")
-//    val whitespace = P(comment).opaque("whitespace")
-//    val whitespace = comment
+    //    val comment = ((!"*/" ~ AnyChar).rep ~ "*/").opaque("comment")
+    //    val whitespace = P(CharIn(" \t\n\r").rep | P("\r\n").rep | comment.rep).opaque("whitespace")
+    val whitespace = P(singleComment | multilineComment | CharIn(" \t\n\r") | P("\r\n")).rep.opaque("whitespace")
+    //    val whitespace = P(comment).opaque("whitespace")
+    //    val whitespace = comment
     NoTrace(whitespace)
   }
+
   import White._
   import fastparse.noApi._
 
@@ -327,7 +346,7 @@ class CParser {
   lazy val unaryOperator = CharIn("&*+-~!")
 
   lazy val castExpression: Parser[Expression] =
-    P(P(P("(") ~ typeName ~ P(")") ~ castExpression).map(v => CastExpression(v._1, v._2)) |
+    P(P(P("(").log("(") ~ typeName.log("typename") ~ P(")").log(")") ~ castExpression.log("castExpression")).map(v => CastExpression(v._1, v._2)) |
       unaryExpression).opaque("castExpression")
 
   lazy val multiplicativeExpression: Parser[Expression] =
@@ -468,7 +487,7 @@ class CParser {
 
   lazy val declaration: Parser[Declaration] =
     P(P(P(declarationSpecifiers ~ initDeclaratorList.? ~ P(";")).map(v => SimpleDeclaration(v._1, v._2)) |
-    static_assertDeclaration)).opaque("declaration")
+      static_assertDeclaration)).opaque("declaration")
   lazy val declarationSpecifier: Parser[DeclarationSpecifier] =
     P(storageClassSpecifier | typeSpecifier | typeQualifier | functionSpecifier | alignmentSpecifier).opaque("declarationSpecifier")
   lazy val declarationSpecifiers: Parser[DeclarationSpecifiers] = declarationSpecifier.rep(1).map(v => DeclarationSpecifiers(v.toList)).opaque("declarationSpecifiers")
@@ -485,14 +504,14 @@ class CParser {
   lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple) | structOrUnionSpecifier).opaque("typeSpecifier")
 
   // Removed structOrUnionSpecifier as it keeps matching inside C functions
-//  lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple)).opaque("typeSpecifier")
+  //  lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple)).opaque("typeSpecifier")
 
   // >>struct blah {
   //   int x;
   // }<< myStruct;
   lazy val structOrUnionSpecifier: Parser[StructOrUnionSpecifier] =
-    P(structOrUnion.! ~ identifier.? ~ P("{") ~ structDeclarationList ~ P("}")).map(v => StructOrUnionSpecifier(v._1 == "struct", v._2, v._3.toList)) |
-      P(structOrUnion.! ~ identifier).map(v => StructOrUnionSpecifier(v._1 == "struct", Some(v._2), Seq()))
+  P(structOrUnion.! ~ identifier.? ~ P("{") ~ structDeclarationList ~ P("}")).map(v => StructOrUnionSpecifier(v._1 == "struct", v._2, v._3.toList)) |
+    P(structOrUnion.! ~ identifier).map(v => StructOrUnionSpecifier(v._1 == "struct", Some(v._2), Seq()))
   lazy val structOrUnion = P("struct") | P("union")
   lazy val structDeclarationList: Parser[Seq[StructDeclaration]] = structDeclaration.rep(1).map(_.toList)
   lazy val structDeclaration: Parser[StructDeclaration] = P(specifierQualifierList ~ structDeclaratorList.? ~ P(";"))
@@ -504,9 +523,9 @@ class CParser {
   // To handle struct node { int data; struct node *next; }
   // StructOrUnionSpecifier extends from TypeSpecifier but we want it to be a TypeSpecifierSimple in the "struct node *next" bit
   lazy val convertStructTypeSpecifier: Parser[TypeSpecifier] = typeSpecifier.map(v => v match {
-      case x: StructOrUnionSpecifier => TypeSpecifierSimple(x.id.map("struct " + _.v).getOrElse(""))
-      case _ => v
-    })
+    case x: StructOrUnionSpecifier => TypeSpecifierSimple(x.id.map("struct " + _.v).getOrElse(""))
+    case _                         => v
+  })
   lazy val specifierQualifierList: Parser[Seq[DeclarationSpecifier]] =
     P(P(convertStructTypeSpecifier | typeQualifier).rep(1)).opaque("specifierQualifierList")
   lazy val structDeclaratorList: Parser[StructDeclaratorList] =
@@ -557,11 +576,11 @@ class CParser {
   def directDeclaratorMerge(left: Identifier, right: DDBuild): DirectDeclarator = {
     right match {
       case v: DDBuildParameterTypeList => FunctionDeclaration(left, v.v)
-      case v: DDBuildIdentifierList => FunctionDeclaration(left, ParameterTypeList(Seq(), false))
-//      case v: DDBuildTypeQualifierList => FunctionDeclaration(left, v.v)
-//      case v: DDBuildTypeQualifierListAssignment => FunctionDeclaration(left, v.v)
-      case v: Empty                    => DirectDeclaratorOnly(left)
-      case _                           =>
+      case v: DDBuildIdentifierList    => FunctionDeclaration(left, ParameterTypeList(Seq(), false))
+      //      case v: DDBuildTypeQualifierList => FunctionDeclaration(left, v.v)
+      //      case v: DDBuildTypeQualifierListAssignment => FunctionDeclaration(left, v.v)
+      case v: Empty => DirectDeclaratorOnly(left)
+      case _        =>
         assert(false, s"Cannot handle DDBuild $right yet")
         null
     }
@@ -584,18 +603,18 @@ class CParser {
   lazy val identifierList: Parser[Seq[Identifier]] =
     (identifier ~ (P(",") ~ identifier).rep(0)).opaque("identifierList").map(v => (v._1 +: v._2).toList)
 
-  // TODO This needs to go back
-  //  lazy val typeName: Parser[TypeName] = P(specifierQualifierList ~ abstractDeclarator.?).!.map(TypeName)
-  lazy val typeName: Parser[TypeName] = P(specifierQualifierList).!.map(TypeName)
+  lazy val typeName: Parser[TypeName] = P(specifierQualifierList.log("specifierQualifierList") ~ abstractDeclarator.?.log("abstractDeclarator")).!.map(v => TypeName(v))
+
   // TODO abstract declarators
-  lazy val abstractDeclarator: Parser[Any] = pointer |
-    P(pointer.? ~ directAbstractDeclarator)
-  lazy val directAbstractDeclarator: Parser[Any] = P(P("(") ~ abstractDeclarator ~ P(")")) |
-    P(directAbstractDeclarator.? ~ P("[") ~ typeQualifierList.?) ~ P(assignmentExpression.? ~ P("]")) |
-    P(directAbstractDeclarator.? ~ P("[") ~ P("static") ~ typeQualifierList.?) ~ P(assignmentExpression ~ P("]")) |
-    P(directAbstractDeclarator.? ~ P("[") ~ typeQualifierList ~ P("static")) ~ P(assignmentExpression ~ P("]")) |
-    P(directAbstractDeclarator.? ~ P("[") ~ P("*") ~ P("]")) |
-    P(directAbstractDeclarator.? ~ P("(") ~ parameterTypeList.? ~ P(")"))
+  lazy val abstractDeclarator: Parser[String] = (pointer.? ~ (P(P("(") ~ abstractDeclarator ~ P(")")) | directAbstractDeclaratorHelper)).!
+  lazy val directAbstractDeclaratorHelper: Parser[Any] =
+    P(P("[") ~ typeQualifierList.?) ~ P(assignmentExpression.? ~ P("]") ~ abstractDeclarator) |
+      P(P("[") ~ P("static") ~ typeQualifierList.?) ~ P(assignmentExpression ~ P("]") ~ abstractDeclarator) |
+      P(P("[") ~ typeQualifierList ~ P("static")) ~ P(assignmentExpression ~ P("]") ~ abstractDeclarator) |
+      P(P("[") ~ P("*") ~ P("]") ~ abstractDeclarator) |
+      P(P("(") ~ parameterTypeList.? ~ P(")") ~ abstractDeclarator) |
+      P("")
+
   lazy val typedefName = identifier
   lazy val initializer: Parser[Initializer] = assignmentExpression.map(InitializerSimple)
   // TODO
@@ -649,10 +668,9 @@ class CParser {
   //  lazy val cfile: Parser[CFile] = (translationUnit ~ End).map(v => CFile(v))
 
 
-
   def parse(in: String): CParseResult[TranslationUnit] = {
     // Start ~ to swallow whitespace at start
-//    val raw = (Start ~ translationUnit).parse(in.trim)
+    //    val raw = (Start ~ translationUnit).parse(in.trim)
     // Don't trim, it messes up preprocessing which checks newline
     val raw = (Start ~ translationUnit).parse(in)
     CParseResult.wrap(raw)
