@@ -1,8 +1,7 @@
-package CParser
+package parsing
 
 import fastparse.core.Parsed
 import org.scalatest.FunSuite
-import parsing._
 
 // For testing bigger functions and whole files
 class BigParserSpec extends FunSuite {
@@ -58,6 +57,10 @@ class BigParserSpec extends FunSuite {
 
   test("single linked list") {
     TestUtils.checkFile(this.getClass.getResource("/Snippet1.c"), true)
+  }
+
+  test("single linked list insert") {
+    TestUtils.checkFile(this.getClass.getResource("/Snippet2.c"), true)
   }
 
   test("count while") {

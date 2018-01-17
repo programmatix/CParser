@@ -45,11 +45,11 @@ object TestUtils {
     while (it.hasNext) {
       val i = it.next()
       i match {
-          // Not sure why this doesn't work, but it matches everything
+        // Not sure why this doesn't work, but it matches everything
         //          case v: Want =>
         //            out = Some(v)
 
-          // Note ArrayBuffer won't match this, but Seq will - so it's important for Parser to toList everything
+        // Note ArrayBuffer won't match this, but Seq will - so it's important for Parser to toList everything
         case v: Product =>
           if (v.getClass.toString.stripPrefix("class ") == wantCls) {
             out = Some(v.asInstanceOf[Want])
@@ -66,7 +66,7 @@ object TestUtils {
 
   def get[Want: ru.TypeTag](in: Product): Option[Want] = {
     val tt = ru.typeTag[Want]
-//    val symbol = tt.tpe.typeSymbol.asInstanceOf[scala.reflect.internal.Symbols#Symbol].toString().stripPrefix("class ")
+    //    val symbol = tt.tpe.typeSymbol.asInstanceOf[scala.reflect.internal.Symbols#Symbol].toString().stripPrefix("class ")
     val symbol = tt.toString.stripPrefix("TypeTag[").stripSuffix("]")
 
     getRec[Want](symbol, in)
@@ -77,7 +77,7 @@ object TestUtils {
     getAndMatch(pp.blockItemList, raw, compareTo, print)
   }
 
-    def getAndMatch[Want: ru.TypeTag, T](parser: Parser[T, Char, String], raw: String, compareTo: Want, print: Boolean = false): Unit = {
+  def getAndMatch[Want: ru.TypeTag, T](parser: Parser[T, Char, String], raw: String, compareTo: Want, print: Boolean = false): Unit = {
     val parsedRaw = parser.parse(raw)
     val parsed = CParseResult.wrap(parsedRaw)
     parsed match {
@@ -101,10 +101,28 @@ object TestUtils {
     }
   }
 
-//  def getAndMatchSnippet[Want: ru.TypeTag, T](raw: String, compareTo: Want, print: Boolean = false): Unit = {
-//    val pp = createParser()
-//    getAndMatch(pp.blockItemList, raw, compareTo, print)
-//  }
+  def getOnly[T](parser: Parser[T, Char, String], raw: String, print: Boolean = false): Option[T] = {
+    val parsedRaw = parser.parse(raw)
+    val parsed = CParseResult.wrap(parsedRaw)
+    parsed match {
+      case CParseSuccess(x) =>
+        if (print) {
+          PPrinter.Color.log(parsed, width = 50, height = 1000)
+        }
+
+        Some(x)
+
+      //        assert (x.v.nonEmpty)
+      case CParseFail(x) =>
+        println(parsed)
+        assert (false)
+        None
+    }
+  }
+  //  def getAndMatchSnippet[Want: ru.TypeTag, T](raw: String, compareTo: Want, print: Boolean = false): Unit = {
+  //    val pp = createParser()
+  //    getAndMatch(pp.blockItemList, raw, compareTo, print)
+  //  }
 
   def passes[T](parser: Parser[T, Char, String], raw: String, print: Boolean = false): Unit = {
     val parsedRaw = parser.parse(raw)
@@ -121,6 +139,7 @@ object TestUtils {
         null
     }
   }
+
 
   def createParser() = new CParser
 
@@ -150,6 +169,31 @@ object TestUtils {
       case CParseSuccess(x) =>
         if (print) {
           PPrinter.Color.log(parsed, width = 50, height = 1000)
+        }
+
+        x
+      //        assert (x.v.nonEmpty)
+      case CParseFail(x) =>
+        println(parsed)
+        assert (false)
+        null
+    }
+  }
+//  def getAndMatch[Want: ru.TypeTag, T](parser: Parser[T, Char, String], raw: String, compareTo: Want, print: Boolean = false): Unit = {
+
+  def checkSnippetContains[Want: ru.TypeTag](raw: String, print: Boolean = false): Seq[BlockItem] = {
+    val p = createParser()
+    val parsed = p.parseSnippet(raw)
+    parsed match {
+      case CParseSuccess(x) =>
+        if (print) {
+          PPrinter.Color.log(parsed, width = 50, height = 1000)
+        }
+
+        val fetched: Option[Want] = get[Want](x.asInstanceOf[Product])
+        fetched match {
+          case Some(v) =>
+          case _ => assert(false, s"Could not find instance in ${x}")
         }
 
         x

@@ -31,7 +31,7 @@ case class Keyword(v: String) extends Token
 case class Punctuator(v: String) extends Token with PPToken
 case class StringLiteral(v: String) extends Token with Expression with PPToken
 case class HeaderName(v: String, angularBrackets: Boolean) extends Token with PPToken
-case class GenericSelection() extends Expression
+//case class GenericSelection() extends Expression
 case class PostfixExpressionIndex(v1: Expression, v2: Expression) extends Expression
 case class PostfixExpressionDot(v1: Expression, v2: Expression) extends Expression
 case class PostfixExpressionPlusPlus(v1: Expression) extends Expression
@@ -41,7 +41,6 @@ case class PostfixExpressionArgs(v1: Expression, v2: Option[ArgumentExpressionLi
 case class PostfixExpressionSimple(v1: Expression) extends Expression
 
 sealed trait UnaryExpression extends Expression
-case class UnaryPlusPlus(v: Expression) extends UnaryExpression
 
 case class ArgumentExpressionList(v: Seq[Expression]) extends Expression
 case class UnaryExpressionPlusPlus(v: Expression) extends Expression

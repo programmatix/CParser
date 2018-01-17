@@ -664,4 +664,50 @@ class IndividualParserSpec extends FunSuite {
   test("right=head;") {
     TestUtils.getAndMatchSnippet("right=head;", ExpressionAssignment(Identifier("right"), Identifier("head")))
   }
+
+  test("if (head== NULL) {}") {
+    TestUtils.passes(pp.expression, "if (head== NULL) {}")
+  }
+
+  test("while complex") {
+    TestUtils.checkSnippet("""while(temp!=NULL)
+                                      |    {
+                                      |        if(temp->data<num)
+                                      |        c++;
+                                      |        temp=temp->next;
+                                      |    }""".stripMargin, print=true)
+  }
+
+  test("append(num)") {
+    assert(TestUtils.getOnly(pp.statement, "append(num);", print=true).get.isInstanceOf[ExpressionStatement])
+
+  }
+
+  test("if-elseif-else complex") {
+    val raw = """if(c==0)
+                |        add(num);
+                |    else if(c<count())
+                |        addafter(num,++c);
+                |    else
+                |        append(num);
+                | """.stripMargin
+    TestUtils.passes(pp.selectionStatement, """if(c<count())
+                                              |        addafter(num,++c);
+                                              |    else
+                                              |        append(num);""".stripMargin, print=true)
+    TestUtils.passes(pp.selectionStatement, raw, print=true)
+    TestUtils.checkSnippet(raw, print=true)
+  }
+
+  test("if else") {
+    val raw = """    if(temp==NULL)
+                |    {
+                |    add(num);
+                |    }
+                |    else
+                |    {
+                |    1=1;
+                |    }""".stripMargin
+    TestUtils.checkSnippetContains[IntConstant](raw, print=true)
+  }
 }
