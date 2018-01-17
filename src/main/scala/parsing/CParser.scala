@@ -287,7 +287,7 @@ class CParser {
 
   //  lazy val primaryExpression: Parser[Expression] = P(identifier | constant | stringLiteral | P(P("(") ~ expression ~ P(")")) | genericSelection)
   lazy val primaryExpression: Parser[Expression] =
-    P(identifier | constant | stringLiteral.log() | P(P("(") ~ expression ~ P(")"))).opaque("primaryExpression").log()
+    P(identifier | constant | stringLiteral | P(P("(") ~ expression ~ P(")"))).opaque("primaryExpression")
 
   // Never seen this, ignoring
   //  lazy val genericSelection: Parser[GenericSelection] = P("_Generic") ~ P("(") ~ assignmentExpression ~ P(",") ~ genericAssocList ~ P(")")
@@ -296,7 +296,7 @@ class CParser {
   //    P(P("default") ~ P(":") ~ assignmentExpression)
 
   lazy val postfixExpression: Parser[Expression] =
-    P(primaryExpression.log() ~ postfixExpressionR.log()).map(v =>
+    P(primaryExpression ~ postfixExpressionR).map(v =>
       postfixRecurse(v)).opaque("postfixExpression")
 
   private def postfixRecurse(v: (Expression, PostfixRight2)): Expression = {
@@ -328,12 +328,12 @@ class CParser {
   lazy val postfixExpressionR: Parser[PostfixRight2] =
     P(P("[") ~ expression ~ P("]") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightIndex(v._1), v._2)) |
       //    P(P("[") ~ multiplicativeExpression ~ P("]") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightIndex(v._1), v._2)) |
-      P(P("(").log("(") ~ argumentExpressionList.?.log("args") ~ P(")").log(")") ~ postfixExpressionR.log("post")).map(v => PostfixRight2(PostfixRightArgs(v._1), v._2)) |
+      P(P("(") ~ argumentExpressionList.? ~ P(")") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightArgs(v._1), v._2)) |
       P(P(".") ~ identifier ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightDot(v._1), v._2)) |
       P(P("->") ~ identifier ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightArrow(v._1), v._2)) |
       P(P("++") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightPlusPlus(), v)) |
       P(P("--") ~ postfixExpressionR).map(v => PostfixRight2(PostfixRightMinusMinus(), v)) |
-      P("").log("empty").map(v => PostfixRight2(Empty(), null))
+      P("").map(v => PostfixRight2(Empty(), null))
 
   // Can't figure this one out
   // P(P("(") ~ typeName ~ P(")") ~ P("{") ~ initializerList ~ P(",").? ~ P("}"))
@@ -510,15 +510,12 @@ class CParser {
   //  lazy val typeSpecifier: Parser[TypeSpecifier] = (P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | structOrUnionSpecifier | enumSpecifier | typedefName).!.map(TypeSpecifier)
   lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple) | structOrUnionSpecifier).opaque("typeSpecifier")
 
-  // Removed structOrUnionSpecifier as it keeps matching inside C functions
-  //  lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple)).opaque("typeSpecifier")
-
   // >>struct blah {
   //   int x;
   // }<< myStruct;
   lazy val structOrUnionSpecifier: Parser[StructOrUnionSpecifier] =
-  P(structOrUnion.! ~ identifier.? ~ P("{") ~ structDeclarationList ~ P("}")).map(v => StructOrUnionSpecifier(v._1 == "struct", v._2, v._3.toList)) |
-    P(structOrUnion.! ~ identifier).map(v => StructOrUnionSpecifier(v._1 == "struct", Some(v._2), Seq()))
+  P(structOrUnion.! ~ identifier.? ~ P("{") ~ structDeclarationList ~ P("}")).map(v => StructImpl(v._1 == "struct", v._2, v._3.toList)) |
+    P(structOrUnion.! ~ identifier).map(v => StructUse(v._1 == "struct", v._2))
   lazy val structOrUnion = P("struct") | P("union")
   lazy val structDeclarationList: Parser[Seq[StructDeclaration]] = structDeclaration.rep(1).map(_.toList)
   lazy val structDeclaration: Parser[StructDeclaration] = P(specifierQualifierList ~ structDeclaratorList.? ~ P(";"))
@@ -529,12 +526,14 @@ class CParser {
 
   // To handle struct node { int data; struct node *next; }
   // StructOrUnionSpecifier extends from TypeSpecifier but we want it to be a TypeSpecifierSimple in the "struct node *next" bit
-  lazy val convertStructTypeSpecifier: Parser[TypeSpecifier] = typeSpecifier.map(v => v match {
-    case x: StructOrUnionSpecifier => TypeSpecifierSimple(x.id.map("struct " + _.v).getOrElse(""))
-    case _                         => v
-  })
+//  lazy val convertStructTypeSpecifier: Parser[TypeSpecifier] = typeSpecifier.map(v => v match {
+//    case x: StructOrUnionSpecifier => TypeSpecifierSimple(x.id.map("struct " + _.v).getOrElse(""))
+//    case _                         => v
+//  })
+
   lazy val specifierQualifierList: Parser[Seq[DeclarationSpecifier]] =
-    P(P(convertStructTypeSpecifier | typeQualifier).rep(1)).opaque("specifierQualifierList")
+//    P(P(convertStructTypeSpecifier | typeQualifier).rep(1)).opaque("specifierQualifierList")
+    P(P(typeSpecifier | typeQualifier).rep(1)).opaque("specifierQualifierList")
   lazy val structDeclaratorList: Parser[StructDeclaratorList] =
     P(structDeclarator ~ P(P(",") ~ structDeclarator).rep(0))
       .opaque("structDeclaratorList").map(v => StructDeclaratorList((v._1 +: v._2).toList))
@@ -654,11 +653,11 @@ class CParser {
   lazy val blockItemList: Parser[Seq[BlockItem]] = blockItem.rep(1).opaque("blockItemList").map(v => v.toList)
   lazy val blockItem: Parser[BlockItem] = (declaration | statement).opaque("blockItem")
 
-  val expressionStatement: Parser[Statement] = (expression.? ~ P(";").log(";")).map(v => if (v.isDefined) ExpressionStatement(v.get) else ExpressionEmptyStatement())
+  val expressionStatement: Parser[Statement] = (expression.? ~ P(";")).map(v => if (v.isDefined) ExpressionStatement(v.get) else ExpressionEmptyStatement())
 
   val selectionStatement: Parser[SelectionStatement] =
-    P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement ~ P("else").log("else") ~/ statement.log()).map(v => SelectionIfElse(v._1, v._2, v._3)) |
-      P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement.log()).map(v => SelectionIf(v._1, v._2)) |
+    P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement ~ P("else") ~/ statement).map(v => SelectionIfElse(v._1, v._2, v._3)) |
+      P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement).map(v => SelectionIf(v._1, v._2)) |
       P(P("switch") ~/ P("(") ~ expression ~ P(")") ~ statement).map(v => SelectionSwitch(v._1, v._2))
 
   val iterationStatement: Parser[IterationStatement] = P(P(P("while") ~/ P("(") ~/ expression ~ P(")") ~/ statement).map(v => IterationWhile(v._1, v._2)) |

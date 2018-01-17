@@ -512,7 +512,7 @@ class IndividualParserSpec extends FunSuite {
   }
 
   test("struct simple") {
-    good(pp.typeSpecifier.parse("struct myStruct"), StructOrUnionSpecifier(true, Some(Identifier("myStruct")), List()))
+    good(pp.typeSpecifier.parse("struct myStruct"), StructUse(true, Identifier("myStruct")))
     good(pp.structDeclaration.parse("int data;"), StructDeclaration(
       ArrayBuffer(
         TypeSpecifierSimple("int")),
@@ -553,13 +553,13 @@ class IndividualParserSpec extends FunSuite {
   test("struct full easy") {
     val raw = """struct node { int data; }""".stripMargin
 
-    good((pp.structOrUnionSpecifier ~ End).parse(raw), StructOrUnionSpecifier(true, Some(Identifier("node")), List(StructDeclaration(ArrayBuffer(TypeSpecifierSimple("int")), Some(StructDeclaratorList(List(StructDeclaractor1(Declarator(None, DirectDeclaratorOnly(Identifier("data")))))))))))
+    good((pp.structOrUnionSpecifier ~ End).parse(raw), StructImpl(true, Some(Identifier("node")), List(StructDeclaration(ArrayBuffer(TypeSpecifierSimple("int")), Some(StructDeclaratorList(List(StructDeclaractor1(Declarator(None, DirectDeclaratorOnly(Identifier("data")))))))))))
   }
 
   test("struct full complex") {
     val raw = """struct node { int data; struct node *next; }""".stripMargin
     good((pp.structOrUnionSpecifier ~ End).parse(raw),
-      StructOrUnionSpecifier(true,
+      StructImpl(true,
         Some(Identifier("node")),
         List(
           StructDeclaration(List(
@@ -570,7 +570,7 @@ class IndividualParserSpec extends FunSuite {
                   Declarator(None, DirectDeclaratorOnly(Identifier("data")))))))),
           StructDeclaration(
             List(
-              TypeSpecifierSimple("struct node")),
+              StructUse(true, Identifier("node"))),
             Some(StructDeclaratorList(List(
               StructDeclaractor1(Declarator(Some("*"), DirectDeclaratorOnly(Identifier("next")))))))))))
   }
@@ -578,7 +578,7 @@ class IndividualParserSpec extends FunSuite {
   test("struct with var") {
     val raw = """struct node { int data; } *head;""".stripMargin
 
-    good((pp.declaration ~ End).parse(raw), SimpleDeclaration(DeclarationSpecifiers(List(StructOrUnionSpecifier(true, Some(Identifier("node")), List(StructDeclaration(List(TypeSpecifierSimple("int")), Some(StructDeclaratorList(List(StructDeclaractor1(Declarator(None, DirectDeclaratorOnly(Identifier("data")))))))))))), Some(List(DeclaratorEmpty(Declarator(Some("*"), DirectDeclaratorOnly(Identifier("head"))))))))
+    good((pp.declaration ~ End).parse(raw), SimpleDeclaration(DeclarationSpecifiers(List(StructImpl(true, Some(Identifier("node")), List(StructDeclaration(List(TypeSpecifierSimple("int")), Some(StructDeclaratorList(List(StructDeclaractor1(Declarator(None, DirectDeclaratorOnly(Identifier("data")))))))))))), Some(List(DeclaratorEmpty(Declarator(Some("*"), DirectDeclaratorOnly(Identifier("head"))))))))
   }
 
   test("while") {
@@ -631,7 +631,7 @@ class IndividualParserSpec extends FunSuite {
     check(pp.blockItem, raw) match {
       case CParseSuccess(v) =>
         assert(v == SimpleDeclaration(DeclarationSpecifiers(List(
-          StructOrUnionSpecifier(true,Some(Identifier("node")),List()))),
+          StructUse(true,Identifier("node")))),
           Some(List(DeclaratorEmpty(Declarator(None,
             DirectDeclaratorOnly(Identifier("n"))))))))
       case _ => assert(false)
@@ -641,7 +641,7 @@ class IndividualParserSpec extends FunSuite {
   test("struct* in func") {
     good(pp.blockItem.parse("""struct node *n;"""),
       SimpleDeclaration(DeclarationSpecifiers(List(
-        StructOrUnionSpecifier(true,Some(Identifier("node")),List()))),
+        StructUse(true,Identifier("node")))),
         Some(List(DeclaratorEmpty(Declarator(Some("*"),
           DirectDeclaratorOnly(Identifier("n"))))))))
   }

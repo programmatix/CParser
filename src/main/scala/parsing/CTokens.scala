@@ -120,9 +120,7 @@ case class InitializerSimple(exp: Expression) extends Initializer
 case class InitializerList(exp: Expression) extends Initializer
 
 // >>int<< hello;
-sealed trait DeclarationSpecifier {
-  val v: String
-}
+sealed trait DeclarationSpecifier
 case class DeclarationSpecifiers(v: Seq[DeclarationSpecifier])
 case class Declarator(pointer: Option[String], v: DirectDeclarator)
 case class StorageClassSpecifier(v: String) extends DeclarationSpecifier
@@ -182,9 +180,9 @@ case class StructDeclaractor1(v: Declarator) extends StructDeclaractor
 case class StructDeclaractor2(v: Option[Declarator], exp: Expression) extends StructDeclaractor
 case class StructDeclaratorList(v: Seq[StructDeclaractor])
 case class StructDeclaration(v: Seq[DeclarationSpecifier], v2: Option[StructDeclaratorList])
-case class StructOrUnionSpecifier(isStruct: Boolean, id: Option[Identifier], v2: Seq[StructDeclaration]) extends DeclarationSpecifier with TypeSpecifier {
-  val v = toString
-}
+sealed trait StructOrUnionSpecifier extends TypeSpecifier
+case class StructImpl(isStruct: Boolean, id: Option[Identifier], v2: Seq[StructDeclaration]) extends StructOrUnionSpecifier
+case class StructUse(isStruct: Boolean, id: Identifier) extends StructOrUnionSpecifier
 
 // The C grammar doesn't have a top level that can either be regular C (translation-unit) or the preprocessor (preprocessing-file).
 // Presumably it's because they're handled by separate tools.  For convenience, translation-unit gets redefined slightly
