@@ -15,8 +15,13 @@ case class CParseFail[T, Elem, Repr](parsed: Parsed[T, Elem, Repr]) extends CPar
     case Parsed.Failure(x, failIndex: Int, z) =>
       val traced = z.traced
       val input = traced.input.asInstanceOf[IndexedParserInput[Char, String]].data
-      val last = traced.fullStack.last
-      val err = s"At index $failIndex '${input.substring(failIndex, Math.min(input.length, failIndex + 10))}'... did not find expected '${last.parser.toString}'"
+      val err = if (traced.fullStack.nonEmpty) {
+        val last = traced.fullStack.last
+        s"At index $failIndex '${input.substring(failIndex, Math.min(input.length, failIndex + 10))}'... did not find expected '${last.parser.toString}'"
+      }
+      else {
+        s"At index $failIndex '${input.substring(failIndex, Math.min(input.length, failIndex + 10))}'... parse error "
+      }
       (err, failIndex)
   }
 

@@ -1,5 +1,6 @@
 package parsing
 
+
 /** This parses the C language according to the grammar here
   * https://port70.net/~nsz/c/c11/n1570.html#A
   * Converting an input string into an abstract syntax tree.
@@ -33,7 +34,98 @@ class CParser {
   private[parsing] case class Empty() extends PostfixRight with MultiplicativeBuild with DDBuild
 
 
+
   // Whitespace sensitive parsers go here
+
+  lazy val preprocessingFile: fastparse.all.Parser[PreprocessingFile] = {
+    // Tweaking the preprocessor definitions as currently they assume a separate tool, which is causing infinite loop issues:
+    // * text-line removed.  This should ensure every preprocessor line has to start with a #
+    // * preprocessing-file doesn't take an opt anymore.
+    // * Remove punctuator from ppTokens
+
+    // All preprocessing is whitespace sensitive due to its use of newline, so use a tweaked version of the
+    // whitespace rules
+    val WhitePP = fastparse.WhitespaceApi.Wrapper {
+      import fastparse.all._
+      //    val comment = P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/").opaque("comment")
+      val multilineComment = P(P("/*") ~ (!P("*/") ~ AnyChar).rep ~ P("*/")).opaque("comment")
+//      val singleComment = P(P("//") ~ (!CharIn("\n") ~ AnyChar).rep ~ P("\n")).opaque("comment")
+      //    val comment = ((!"*/" ~ AnyChar).rep ~ "*/").opaque("comment")
+      //    val whitespace = P(CharIn(" \t\n\r").rep | P("\r\n").rep | comment.rep).opaque("whitespace")
+      val whitespace = P(multilineComment| CharIn(" \t")).rep.opaque("whitespace")
+      //    val whitespace = P(comment).opaque("whitespace")
+      //    val whitespace = comment
+      NoTrace(whitespace)
+    }
+    import WhitePP._
+    import fastparse.noApi._
+//    import fastparse.api._
+//    import fastparse.all._
+
+    lazy val headerName: Parser[HeaderName] = (P(P("<") ~ CharsWhile(v => v != '\r' && v != '\n' && v != '>') ~ P(">")) |
+      P(P("\"") ~ CharsWhile(v => v != '\r' && v != '\n' && v != '"') ~ P("\""))).!.map(v => {
+      HeaderName(v.substring(1, v.size - 1), v.charAt(0) == '<')
+    })
+
+    //    A.3 Preprocessing directives
+    val preprocessingToken: Parser[PPToken] =
+      P(headerName |
+        identifier |
+        ppNumber |
+        characterConstant |
+        stringLiteral
+
+        // punctuator
+        // TODO no idea how to implement this
+        //each non-white-space character that cannot be one of the above
+      ).opaque("preprocessingToken")
+
+    lazy val group: Parser[Group] = groupPart.rep(1).opaque("group").map(v => Group(v.toList))
+    //  lazy val groupPart: Parser[GroupPart] = P(ifSection  | controlLine  | textLine | P("#") ~ nonDirective).opaque("groupPart")
+    lazy val groupPart: Parser[GroupPart] = P(ifSection | controlLine | nonDirective).opaque("groupPart")
+    //  lazy val groupPart: Parser[GroupPart] = P(ifSection).opaque("groupPart")
+
+    lazy val ifSection: Parser[IfSection] = P(ifGroup ~ elifGroups.? ~ elseGroup.? ~ endifLine).map(v => IfSection(v._1, v._2, v._3, v._4)).opaque("ifSection")
+    lazy val ifGroup: Parser[IfGroup] =
+      P(P(P("#") ~ P("if") ~/ constantExpression ~ newline ~ group.?).map(v => If(v._1, v._2)) |
+        P(P("#") ~ P("ifdef") ~/ identifier ~ newline ~ group.?).map(v => IfDef(v._1, v._2)) |
+        P(P("#") ~ P("ifndef") ~/ identifier ~ newline ~ group.?).map(v => IfNDef(v._1, v._2)))
+        .opaque("ifGroup")
+    lazy val elifGroups = elifGroup.rep(1).opaque("elifGroups")
+    lazy val elifGroup: Parser[ElifGroup] =
+      P(P("#") ~ P("elif") ~/ constantExpression ~ newline ~ group.?).map(v => ElifGroup(v._1, v._2)).opaque("elifGroup")
+    lazy val elseGroup: Parser[ElseGroup] =
+      P(P("#") ~ P("else") ~/ newline ~ group.?).opaque("elseGroup").map(ElseGroup)
+    lazy val endifLine: Parser[EndifLine] =
+      P(P("#") ~ P("endif") ~/ newline).map(v => EndifLine()).opaque("endifLine")
+
+    lazy val controlLine: Parser[ControlLine] = P(
+      P(P("#").log("#") ~ P("include").log("include") ~/ ppTokens.log("tokens") ~ newline.log("newline")).map(Include) |
+        P(P("#") ~ P("define") ~ identifier ~ replacementList ~ newline).map(v => Define(v._1, v._2)) |
+        P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList.? ~ P(")") ~ replacementList ~ newline).map(v => Define2(v._1, v._2, v._3)) |
+        P(P("#") ~ P("define") ~ identifier ~ lparen ~ P("...") ~ P(")") ~ replacementList ~ newline).map(v => Define3(v._1, v._2)) |
+        P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList ~ P(",") ~ P("...") ~ P(")") ~ replacementList ~ newline).map(v => Define4(v._1, v._2, v._3)) |
+        P(P("#") ~ P("undef") ~/ identifier ~ newline).map(Undef) |
+        P(P("#") ~ P("line") ~/ ppTokens ~ newline).map(Line) |
+        P(P("#") ~ P("error") ~/ ppTokens.? ~ newline).map(v => Error(v)) |
+        P(P("#") ~ P("pragma") ~/ ppTokens.? ~ newline).map(v => Pragma(v)) |
+        P(P("#") ~ newline).map(v => ControlLineEmpty()))
+      .opaque("controlLine").log()
+
+    //  lazy val textLine: Parser[TextLine] = P(ppTokens.? ~ newLine).opaque("textLine").map(TextLine)
+    lazy val nonDirective: Parser[NonDirective] = (P("#") ~ P(ppTokens) ~ newline).opaque("nonDirective").map(NonDirective)
+
+    //  lazy val lparen = a ( character not immediately preceded by whiteSpace
+    lazy val lparen = P("(")
+    lazy val replacementList: Parser[ReplacementList] = (ppTokens.?).map(ReplacementList).opaque("replacementList")
+    lazy val ppTokens: Parser[Seq[PPToken]] = preprocessingToken.rep(1).opaque("ppTokens").map(_.toList)
+    lazy val newline = P(P("\r\n") | P("\n")).opaque("newline")
+
+    // The &P("#") is a performance improvement, all preprocessor directives need to start with this
+    (P(&(P("#"))) ~/ group).map(v => PreprocessingFile(v)).opaque("preprocessingFile")
+//    (group).map(v => PreprocessingFile(v)).opaque("preprocessingFile")
+  }
+
   val identifier: fastparse.all.Parser[Identifier] = {
     import fastparse.all._
 
@@ -65,7 +157,7 @@ class CParser {
   private val White = fastparse.WhitespaceApi.Wrapper {
     import fastparse.all._
 //    val comment = P("/*" ~/ (!"*/" ~ AnyChar).rep ~/ "*/").opaque("comment")
-    val multilineComment = P(P("/*") ~ (!P("*/") ~ AnyChar).rep ~ P("*/")).opaque("comment")
+    val multilineComment = P(P("/*") ~/ (!P("*/") ~ AnyChar).rep ~ P("*/")).opaque("comment")
     val singleComment = P(P("//") ~ (!CharIn("\n") ~ AnyChar).rep ~ P("\n")).opaque("comment")
 //    val comment = ((!"*/" ~ AnyChar).rep ~ "*/").opaque("comment")
 //    val whitespace = P(CharIn(" \t\n\r").rep | P("\r\n").rep | comment.rep).opaque("whitespace")
@@ -94,7 +186,7 @@ class CParser {
       .opaque("integerConstant")
   lazy val hexadecimalPrefix = P("0x") | P("0X")
   lazy val hexadecimalConstant =
-    P(hexadecimalPrefix ~ CharIn("0123456789abcdef").rep(1)).!.map(v =>
+    P(hexadecimalPrefix ~/ CharIn("0123456789abcdef").rep(1)).!.map(v =>
       IntConstant(Integer.parseInt(v, 16)))
   lazy val nonzeroDigit = P(CharIn('1' to '9')).!.map(v => Digit(v.charAt(0)))
   //   lazy val octalDigit = P(CharIn('0' to '7'))
@@ -163,10 +255,6 @@ class CParser {
 
   lazy val token: Parser[Token] = keyword | identifier | constant | stringLiteral | punctuator
 
-  lazy val headerName: Parser[HeaderName] = (P(P("<") ~ CharsWhile(v => v != '\n' && v != '>') ~ P(">")) |
-    P(P("\"") ~ CharsWhile(v => v != '\n' && v != '"') ~ P("\""))).!.map(v => {
-    HeaderName(v.substring(1, v.size - 1), v.charAt(0) == '<')
-  })
 
   // This isn't quite what the spec says, but it's a lot simpler and good enough
   lazy val ppNumber = constant
@@ -364,9 +452,9 @@ class CParser {
       P("").map(v => TernaryOpBuildWrap(" ", " ", null, null))
 
   lazy val assignmentExpression: Parser[Expression] =
-    (conditionalExpression ~ assignmentExpressionHelper).map(v => binary(v._1, v._2)).opaque("assignmentExpression")
+    (conditionalExpression.log() ~ assignmentExpressionHelper).map(v => binary(v._1, v._2)).opaque("assignmentExpression")
   lazy val assignmentExpressionHelper: Parser[BinaryOpBuildWrap] =
-    P(assignmentOperator.! ~ assignmentExpression).map(v => BinaryOpBuildWrap(v._1, v._2)) |
+    P(assignmentOperator.!.log("assignmentOperator") ~ assignmentExpression.log("assignmentExpression")).map(v => BinaryOpBuildWrap(v._1, v._2)) |
       P("").map(v => BinaryOpBuildWrap(" ", null))
   lazy val assignmentOperator = P("=") | P("*=") | P("/=") | P("%=") | P("+=") | P("-=") | P("<<=") | P(">>=") | P("&=") | P("^=") | P("|=")
 
@@ -378,7 +466,8 @@ class CParser {
 
   lazy val constantExpression: Parser[Expression] = conditionalExpression
 
-  lazy val declaration: Parser[Declaration] = P(P(P(declarationSpecifiers ~ initDeclaratorList.? ~ P(";")).map(v => SimpleDeclaration(v._1, v._2)) |
+  lazy val declaration: Parser[Declaration] =
+    P(P(P(declarationSpecifiers ~ initDeclaratorList.? ~ P(";")).map(v => SimpleDeclaration(v._1, v._2)) |
     static_assertDeclaration)).opaque("declaration")
   lazy val declarationSpecifier: Parser[DeclarationSpecifier] =
     P(storageClassSpecifier | typeSpecifier | typeQualifier | functionSpecifier | alignmentSpecifier).opaque("declarationSpecifier")
@@ -395,6 +484,12 @@ class CParser {
   //  lazy val typeSpecifier: Parser[TypeSpecifier] = (P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | structOrUnionSpecifier | enumSpecifier | typedefName).!.map(TypeSpecifier)
   lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple) | structOrUnionSpecifier).opaque("typeSpecifier")
 
+  // Removed structOrUnionSpecifier as it keeps matching inside C functions
+//  lazy val typeSpecifier: Parser[TypeSpecifier] = P(P(P("void") | P("char") | P("short") | P("int") | P("long") | P("float") | P("double") | P("signed") | P("unsigned") | P("_Bool") | P("_Complex") | atomicTypeSpecifier | enumSpecifier).!.map(TypeSpecifierSimple)).opaque("typeSpecifier")
+
+  // >>struct blah {
+  //   int x;
+  // }<< myStruct;
   lazy val structOrUnionSpecifier: Parser[StructOrUnionSpecifier] =
     P(structOrUnion.! ~ identifier.? ~ P("{") ~ structDeclarationList ~ P("}")).map(v => StructOrUnionSpecifier(v._1 == "struct", v._2, v._3.toList)) |
       P(structOrUnion.! ~ identifier).map(v => StructOrUnionSpecifier(v._1 == "struct", Some(v._2), Seq()))
@@ -518,7 +613,7 @@ class CParser {
 
   val statement: Parser[Statement] = P(P(labeledStatement) |
     P(compoundStatement) |
-    P(expressionStatement) |
+    P(expressionStatement.log()) |
     P(selectionStatement) |
     P(iterationStatement) |
     P(jumpStatement)).opaque("statement")
@@ -527,7 +622,7 @@ class CParser {
     P(P("default") ~ P(":") ~ statement).map(v => LabelledDefault(v))
   val compoundStatement: Parser[CompoundStatement] = P("{") ~ blockItemList.?.opaque("compoundStatement").map(v => CompoundStatement(v.getOrElse(List()))) ~ P("}")
   lazy val blockItemList: Parser[Seq[BlockItem]] = blockItem.rep(1).opaque("blockItemList").map(v => v.toList)
-  lazy val blockItem: Parser[BlockItem] = (declaration | statement).opaque("blockItem")
+  lazy val blockItem: Parser[BlockItem] = (declaration | statement.log()).opaque("blockItem")
   val expressionStatement: Parser[Statement] = (expression.? ~ P(";")).map(v => if (v.isDefined) ExpressionStatement(v.get) else ExpressionEmptyStatement())
   val selectionStatement: Parser[SelectionStatement] = P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement).map(v => SelectionIf(v._1, v._2)) |
     P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement ~ P("else") ~ statement).map(v => SelectionIfElse(v._1, v._2, v._3)) |
@@ -554,66 +649,12 @@ class CParser {
   //  lazy val cfile: Parser[CFile] = (translationUnit ~ End).map(v => CFile(v))
 
 
-  // Tweaking the preprocessor definitions as currently they assume a separate tool, which is causing infinite loop issues:
-  // * text-line removed.  This should ensure every preprocessor line has to start with a #
-  // * preprocessing-file doesn't take an opt anymore.
-  // * Remove punctuator from ppTokens
-
-  //    A.3 Preprocessing directives
-  val preprocessingToken: Parser[PPToken] =
-    P(headerName |
-      identifier |
-      ppNumber |
-      characterConstant |
-      stringLiteral
-      // punctuator
-      // TODO
-      //each non-white-space character that cannot be one of the above
-    ).opaque("preprocessingToken")
-
-  lazy val preprocessingFile: Parser[PreprocessingFile] = group.map(v => PreprocessingFile(v)).opaque("preprocessingFile")
-  lazy val group: Parser[Group] = groupPart.rep(1).opaque("group").map(Group)
-  //  lazy val groupPart: Parser[GroupPart] = P(ifSection  | controlLine  | textLine | P("#") ~ nonDirective).opaque("groupPart")
-  lazy val groupPart: Parser[GroupPart] = P(ifSection | controlLine | nonDirective).opaque("groupPart")
-  //  lazy val groupPart: Parser[GroupPart] = P(ifSection).opaque("groupPart")
-
-  lazy val ifSection: Parser[IfSection] = P(ifGroup ~ elifGroups.? ~ elseGroup.? ~ endifLine).map(v => IfSection(v._1, v._2, v._3, v._4)).opaque("ifSection")
-  lazy val ifGroup: Parser[IfGroup] =
-    P(P(P("#") ~ P("if") ~ constantExpression ~ group.?).map(v => If(v._1, v._2)) |
-      P(P("#") ~ P("ifdef") ~ identifier ~ group.?).map(v => IfDef(v._1, v._2)) |
-      P(P("#") ~ P("ifndef") ~ identifier ~ group.?).map(v => IfNDef(v._1, v._2)))
-      .opaque("ifGroup")
-  lazy val elifGroups = elifGroup.rep(1).opaque("elifGroups")
-  lazy val elifGroup: Parser[ElifGroup] =
-    P(P("#") ~ P("elif") ~ constantExpression ~ group.?).map(v => ElifGroup(v._1, v._2)).opaque("elifGroup")
-  lazy val elseGroup: Parser[ElseGroup] =
-    P(P("#") ~ P("else") ~ group.?).opaque("elseGroup").map(ElseGroup)
-  lazy val endifLine: Parser[EndifLine] =
-    P(P("#") ~ P("endif")).map(v => EndifLine()).opaque("endifLine")
-
-  lazy val controlLine: Parser[ControlLine] = P(
-    P(P("#") ~ P("include") ~ ppTokens).map(Include) |
-      P(P("#") ~ P("define") ~ identifier ~ replacementList).map(v => Define(v._1, v._2)) |
-      P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList.? ~ P(")") ~ replacementList).map(v => Define2(v._1, v._2, v._3)) |
-      P(P("#") ~ P("define") ~ identifier ~ lparen ~ P("...") ~ P(")") ~ replacementList).map(v => Define3(v._1, v._2)) |
-      P(P("#") ~ P("define") ~ identifier ~ lparen ~ identifierList ~ P(",") ~ P("...") ~ P(")") ~ replacementList).map(v => Define4(v._1, v._2, v._3)) |
-      P(P("#") ~ P("undef") ~ identifier).map(Undef) |
-      P(P("#") ~ P("line") ~ ppTokens).map(Line) |
-      P(P("#") ~ P("error") ~ ppTokens.?).map(v => Error(v)) |
-      P(P("#") ~ P("pragma") ~ ppTokens.?).map(v => Pragma(v)) |
-      P(P("#")).map(v => ControlLineEmpty()))
-    .opaque("controlLine")
-
-  //  lazy val textLine: Parser[TextLine] = P(ppTokens.? ~ newLine).opaque("textLine").map(TextLine)
-  lazy val nonDirective: Parser[NonDirective] = (P("#") ~ P(ppTokens)).opaque("nonDirective").map(NonDirective)
-
-  //  lazy val lparen = a ( character not immediately preceded by whiteSpace
-  lazy val lparen = P("(")
-  lazy val replacementList: Parser[ReplacementList] = (ppTokens.?).map(ReplacementList).opaque("replacementList")
-  lazy val ppTokens: Parser[Seq[PPToken]] = preprocessingToken.rep(1).opaque("ppTokens")
 
   def parse(in: String): CParseResult[TranslationUnit] = {
-    val raw = (Start ~ translationUnit).parse(in.trim)
+    // Start ~ to swallow whitespace at start
+//    val raw = (Start ~ translationUnit).parse(in.trim)
+    // Don't trim, it messes up preprocessing which checks newline
+    val raw = (Start ~ translationUnit).parse(in)
     CParseResult.wrap(raw)
   }
 
