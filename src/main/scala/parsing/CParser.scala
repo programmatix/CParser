@@ -171,6 +171,16 @@ class CParser {
       IntConstant(Integer.parseInt(v, 8)))
   }
 
+  lazy val stringLiteral: fastparse.all.Parser[StringLiteral] = {
+    import fastparse.all._
+    lazy val encodingPrefix = P("u8" | CharIn("uUL"))
+
+    //    P(encodingPrefix.? ~ CharIn("\"") ~ CharsWhile(v => v != '"' && v != '\\' && v != '\n') ~ CharIn("\"")).!.map(v =>
+    P(encodingPrefix.? ~ CharIn("\"") ~ CharsWhile(v => v != '"') ~ CharIn("\"")).!.map(v =>
+      StringLiteral(v.stripPrefix("u8").stripPrefix("u").stripPrefix("U").stripPrefix("L").stripPrefix("\"").stripSuffix("\"")))
+  }
+
+
   // Ignore whitespace
   private val White = fastparse.WhitespaceApi.Wrapper {
     import fastparse.all._
@@ -189,7 +199,7 @@ class CParser {
   import fastparse.noApi._
 
 
-  // Whitespace in-sensitive parsers go here
+  // Whitespace insensitive parsers go here
 
   // http://c0x.coding-guidelines.com/6.4.2.1.html
   lazy val keyword = P(P("auto ∗") | P("break") | P("case") | P("char") | P("const") | P("continue") | P("default") | P("do") | P("double") | P("else") |
@@ -262,9 +272,6 @@ class CParser {
   //  hexadecimalEscapeSequence hexadecimalDigit
   //    A.1.6 String literals
 
-  lazy val stringLiteral: Parser[StringLiteral] = P(encodingPrefix.? ~ CharIn("\"") ~ CharsWhile(v => v != '"' && v != '\\' && v != '\n') ~ CharIn("\"")).!.map(v =>
-    StringLiteral(v.stripPrefix("u8").stripPrefix("u").stripPrefix("U").stripPrefix("L").stripPrefix("\"").stripSuffix("\"")))
-  lazy val encodingPrefix = P("u8" | CharIn("uUL"))
   lazy val punctuator: Parser[Punctuator] =
     P(P("[") | P("|") | P("]") | P("(") | P(")") | P("{") | P("}") | P(".") | P("->") | P("++") | P("--") | P("&") |
       P("*") | P("+") | P("-") | P("~") | P("!") | P("/") | P("%") | P("<<") | P(">>") | P("<") | P(">") | P("<=") |
@@ -280,7 +287,7 @@ class CParser {
 
   //  lazy val primaryExpression: Parser[Expression] = P(identifier | constant | stringLiteral | P(P("(") ~ expression ~ P(")")) | genericSelection)
   lazy val primaryExpression: Parser[Expression] =
-    P(identifier | constant | stringLiteral | P(P("(") ~ expression ~ P(")"))).opaque("primaryExpression")
+    P(identifier | constant | stringLiteral.log() | P(P("(") ~ expression ~ P(")"))).opaque("primaryExpression").log()
 
   // Never seen this, ignoring
   //  lazy val genericSelection: Parser[GenericSelection] = P("_Generic") ~ P("(") ~ assignmentExpression ~ P(",") ~ genericAssocList ~ P(")")
@@ -289,7 +296,7 @@ class CParser {
   //    P(P("default") ~ P(":") ~ assignmentExpression)
 
   lazy val postfixExpression: Parser[Expression] =
-    P(primaryExpression ~ postfixExpressionR).map(v =>
+    P(primaryExpression.log() ~ postfixExpressionR.log()).map(v =>
       postfixRecurse(v)).opaque("postfixExpression")
 
   private def postfixRecurse(v: (Expression, PostfixRight2)): Expression = {
@@ -637,9 +644,10 @@ class CParser {
     P(iterationStatement) |
     P(jumpStatement)).opaque("statement")
 
-  val labeledStatement: Parser[LabelledStatement] = (identifier ~ P(":") ~ statement).map(v => LabelledLabel(v._1, v._2))
-  P(P("case") ~ constantExpression ~ P(":") ~ statement).map(v => LabelledCase(v._1, v._2)) |
-    P(P("default") ~ P(":") ~ statement).map(v => LabelledDefault(v))
+  val labeledStatement: Parser[LabelledStatement] =
+    P(P("case") ~/ constantExpression ~ P(":") ~ statement).map(v => LabelledCase(v._1, v._2)) |
+      P(P("default") ~/ P(":") ~ statement).map(v => LabelledDefault(v)) |
+      (identifier ~ P(":") ~ statement).map(v => LabelledLabel(v._1, v._2))
 
   val compoundStatement: Parser[CompoundStatement] = P("{") ~ blockItemList.?.opaque("compoundStatement").map(v => CompoundStatement(v.getOrElse(List()))) ~ P("}")
 
@@ -650,13 +658,13 @@ class CParser {
 
   val selectionStatement: Parser[SelectionStatement] =
     P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement ~ P("else").log("else") ~/ statement.log()).map(v => SelectionIfElse(v._1, v._2, v._3)) |
-    P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement.log()).map(v => SelectionIf(v._1, v._2)) |
-    P(P("switch") ~/ P("(") ~ expression ~ P(")") ~ statement).map(v => SelectionSwitch(v._1, v._2))
+      P(P("if") ~ P("(") ~ expression ~ P(")") ~ statement.log()).map(v => SelectionIf(v._1, v._2)) |
+      P(P("switch") ~/ P("(") ~ expression ~ P(")") ~ statement).map(v => SelectionSwitch(v._1, v._2))
 
-  val iterationStatement: Parser[IterationStatement] = P(P(P("while") ~/ P("(") ~ expression ~ P(")") ~ statement).map(v => IterationWhile(v._1, v._2)) |
-    P(P("do") ~/ statement ~ P("while") ~ P("(") ~ expression ~ P(")") ~ P(";")).map(v => IterationDoWhile(v._2, v._1)) |
-    P(P("for") ~ P("(") ~ expression.? ~ P(";") ~ expression.? ~ P(";") ~ expression.? ~ P(")") ~ statement).map(v => IterationFor1(v._1, v._2, v._3, v._4)) |
-    P(P("for") ~ P("(") ~ declaration ~ expression.? ~ P(";") ~ expression.? ~ P(")") ~ statement).map(v => IterationFor2(v._1, v._2, v._3, v._4)))
+  val iterationStatement: Parser[IterationStatement] = P(P(P("while") ~/ P("(") ~/ expression ~ P(")") ~/ statement).map(v => IterationWhile(v._1, v._2)) |
+    P(P("do") ~/ statement ~ P("while") ~ P("(") ~/ expression ~ P(")") ~ P(";")).map(v => IterationDoWhile(v._2, v._1)) |
+    P(P("for") ~ P("(") ~ expression.? ~/ P(";") ~ expression.? ~ P(";") ~/ expression.? ~ P(")") ~/ statement).map(v => IterationFor1(v._1, v._2, v._3, v._4)) |
+    P(P("for") ~ P("(") ~ declaration ~/ expression.? ~ P(";") ~/ expression.? ~ P(")") ~/ statement).map(v => IterationFor2(v._1, v._2, v._3, v._4)))
     .opaque("iterationStatement")
 
   val jumpStatement: Parser[JumpStatement] = P(P("goto") ~/ identifier ~ P(";")).map(v => Goto(v)) |

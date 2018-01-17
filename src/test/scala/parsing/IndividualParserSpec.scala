@@ -158,14 +158,14 @@ class IndividualParserSpec extends FunSuite {
     good(p.token.parse("""|"""), Punctuator("|"))
   }
 
-//  ignore("headerName") {
-//    val p = createParser()
-//    good(p.headerName.parse(""""hello.h""""), HeaderName("hello.h", false))
-//    good(p.headerName.parse("""<hello.h>"""), HeaderName("hello.h", true))
-////    good(p.preprocessingToken.parse("""<hello.h>"""), HeaderName("hello.h", true))
-////    good(p.ppTokens.parse("""<hello.h>"""), Seq(HeaderName("hello.h", true)))
-////    good(p.preprocessingFile.parse("""<hello.h>"""), Seq(HeaderName("hello.h", true)))
-//  }
+  //  ignore("headerName") {
+  //    val p = createParser()
+  //    good(p.headerName.parse(""""hello.h""""), HeaderName("hello.h", false))
+  //    good(p.headerName.parse("""<hello.h>"""), HeaderName("hello.h", true))
+  ////    good(p.preprocessingToken.parse("""<hello.h>"""), HeaderName("hello.h", true))
+  ////    good(p.ppTokens.parse("""<hello.h>"""), Seq(HeaderName("hello.h", true)))
+  ////    good(p.preprocessingFile.parse("""<hello.h>"""), Seq(HeaderName("hello.h", true)))
+  //  }
 
   test("jumpStatement") {
     val p = createParser()
@@ -501,13 +501,13 @@ class IndividualParserSpec extends FunSuite {
   test("include") {
     val p = createParser()
 
-//    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h", true))))
+    //    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h", true))))
     TestUtils.getAndMatch[Include,PreprocessingFile](p.preprocessingFile, "#include <hello.h>\r\n", Include(Seq(HeaderName("hello.h", true))))
   }
 
   test("define") {
     val p = createParser()
-//    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h", true))))
+    //    good(p.controlLine.parse("#include <hello.h>\n"), Include(Seq(HeaderName("hello.h", true))))
     good(p.preprocessingFile.parse("#include <hello.h>\n"), PreprocessingFile(Group(List(Include(List(HeaderName("hello.h", true)))))))
   }
 
@@ -671,11 +671,11 @@ class IndividualParserSpec extends FunSuite {
 
   test("while complex") {
     TestUtils.checkSnippet("""while(temp!=NULL)
-                                      |    {
-                                      |        if(temp->data<num)
-                                      |        c++;
-                                      |        temp=temp->next;
-                                      |    }""".stripMargin, print=true)
+                             |    {
+                             |        if(temp->data<num)
+                             |        c++;
+                             |        temp=temp->next;
+                             |    }""".stripMargin, print=true)
   }
 
   test("append(num)") {
@@ -709,5 +709,30 @@ class IndividualParserSpec extends FunSuite {
                 |    1=1;
                 |    }""".stripMargin
     TestUtils.checkSnippetContains[IntConstant](raw, print=true)
+  }
+
+  test("newlines in string literals") {
+    assert(TestUtils.passes(pp.assignmentExpression, "\"hello\"", print=true).get == StringLiteral("hello"))
+    assert(TestUtils.passes(pp.assignmentExpression, "\"hello\n\"", print=true).get == StringLiteral("hello\n"))
+    assert(TestUtils.passes(pp.assignmentExpression, "\"\n\"", print=true).get == StringLiteral("\n"))
+  }
+
+  test("""printf("\n");""") {
+    val raw = """printf("\n");"""
+    TestUtils.checkSnippet(raw, print=true)
+  }
+
+  test("switch") {
+    val raw = """        switch(i)
+                |        {
+                |        case 1:      printf("Enter the number to insert : ");
+                |                 break;
+                |        }
+                |""".stripMargin
+    TestUtils.passes(pp.statement, """printf("Enter the number to insert : ");""")
+//    TestUtils.passes(pp.statement ~ End, """printf("Enter the number to insert : ");break;""")
+    TestUtils.passes(pp.constantExpression, """1""")
+    TestUtils.passes(pp.labeledStatement, """case 1: printf("Enter the number to insert : ");""", print=true)
+    TestUtils.checkSnippet(raw, print=true)
   }
 }

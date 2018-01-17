@@ -102,7 +102,7 @@ case class LabelledDefault(v2: Statement) extends LabelledStatement
 sealed trait Declaration extends ExternalDeclaration with BlockItem
 case class SimpleDeclaration(spec: DeclarationSpecifiers, init: Option[Seq[InitDeclarator]]) extends Declaration
 case class StaticAssertDeclaration(v1: Expression, v2: StringLiteral) extends Declaration
-case class StatementDeclaration(v: Declaration) extends Statement
+//case class StatementDeclaration(v: Declaration) extends Statement
 case class CompoundStatement(v: Seq[BlockItem]) extends Statement
 //case class BlockItemList(v: Seq[BlockItem])
 sealed trait BlockItem

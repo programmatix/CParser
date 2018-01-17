@@ -97,7 +97,6 @@ object TestUtils {
       case CParseFail(x) =>
         println(parsed)
         assert (false)
-        null
     }
   }
 
@@ -124,7 +123,7 @@ object TestUtils {
   //    getAndMatch(pp.blockItemList, raw, compareTo, print)
   //  }
 
-  def passes[T](parser: Parser[T, Char, String], raw: String, print: Boolean = false): Unit = {
+  def passes[T](parser: Parser[T, Char, String], raw: String, print: Boolean = false): Option[T] = {
     val parsedRaw = parser.parse(raw)
     val parsed = CParseResult.wrap(parsedRaw)
     parsed match {
@@ -132,11 +131,12 @@ object TestUtils {
         if (print) {
           PPrinter.Color.log(parsed, width = 50, height = 1000)
         }
+        Some(x)
 
       case CParseFail(x) =>
         println(parsed)
         assert (false)
-        null
+        None
     }
   }
 

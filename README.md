@@ -13,7 +13,7 @@ libraryDependencies += "com.lihaoyi" %%% "fastparse" % "1.0.0"
 ```
 
 There's two main entry points.  CParser.parseSnippet is for parsing a snippet of C code - something you'd find inside a C function.
-CParser.parse is for parsing a C translation unite - which can be as small as a single function, or as big as a full C file. 
+CParser.parse is for parsing a C translation unit - which can be as small as a single function, or as big as a full C file. 
 
 Both functions return a CParseSuccess if they can parse the input, containing an abstract syntax tree in the form of nested case classes.
 parseSnippet returns a Seq of BlockItem, each corresponding to block-item in the C specification, which roughly means "a line of C code". 
