@@ -97,7 +97,7 @@ class BigParserSpec extends FunSuite {
                 |""".stripMargin
     val out = TestUtils.check(raw, print = true)
     assert (TestUtils.contains[Group](out))
-    assert (TestUtils.contains[StructOrUnionSpecifier](out))
+    assert (TestUtils.contains[StructDeclaration](out))
   }
 
   test("include and struct") {
@@ -112,6 +112,6 @@ class BigParserSpec extends FunSuite {
                 |""".stripMargin
     val out = TestUtils.check(raw)
     assert (TestUtils.contains[Group](out))
-    assert (TestUtils.contains[StructOrUnionSpecifier](out))
+    assert (TestUtils.contains[StructDeclaration](out))
   }
 }

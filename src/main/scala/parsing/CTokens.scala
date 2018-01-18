@@ -100,6 +100,8 @@ case class LabelledDefault(v2: Statement) extends LabelledStatement
 
 // >>int hello;<<
 sealed trait Declaration extends ExternalDeclaration with BlockItem
+// >>int hello, world<<;
+// >>int hello<<;
 case class SimpleDeclaration(spec: DeclarationSpecifiers, init: Option[Seq[InitDeclarator]]) extends Declaration
 case class StaticAssertDeclaration(v1: Expression, v2: StringLiteral) extends Declaration
 //case class StatementDeclaration(v: Declaration) extends Statement
@@ -183,6 +185,8 @@ case class StructDeclaration(v: Seq[DeclarationSpecifier], v2: Option[StructDecl
 sealed trait StructOrUnionSpecifier extends TypeSpecifier
 case class StructImpl(isStruct: Boolean, id: Option[Identifier], v2: Seq[StructDeclaration]) extends StructOrUnionSpecifier
 case class StructUse(isStruct: Boolean, id: Identifier) extends StructOrUnionSpecifier
+
+//sealed trait InitializerList
 
 // The C grammar doesn't have a top level that can either be regular C (translation-unit) or the preprocessor (preprocessing-file).
 // Presumably it's because they're handled by separate tools.  For convenience, translation-unit gets redefined slightly

@@ -145,6 +145,7 @@ int count()
     n=n->next;
     c++;
     }
+
     return c;
 }
 
