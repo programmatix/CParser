@@ -10,5 +10,5 @@ libraryDependencies += "com.lihaoyi" %%% "pprint" % "0.5.3" % "test"
 lazy val CParser = (project in file("."))
   .settings(
     name := "CParser",
-    scalaVersion := "2.12.4"
+    scalaVersion := "2.12.8"
   )
